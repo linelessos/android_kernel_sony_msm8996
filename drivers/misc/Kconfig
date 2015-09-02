@@ -557,16 +557,6 @@ config UID_SYS_STATS
 	  Per UID based io statistics exported to /proc/uid_io
 	  Per UID based procstat control in /proc/uid_procstat
 
-config NFC_PN547
-	tristate "NFC driver for PN547"
-	depends on I2C
-	default n
-	help
-	  This option enables device driver for PN547.
-	  GPIO, and PMIC GPIO configurations are controlled.
-	  The sysfs files provides the interface to send and receive
-	  the data, response and notification.
-
 config NFC_PN553
 	tristate "NFC driver for PN553"
 	depends on I2C
@@ -700,6 +690,25 @@ config TOF_SENSOR
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called tof_sensor.
+
+config NFC_PN547
+	bool "NXP PN547 NFC Controller Driver"
+	depends on I2C
+	default n
+	help
+	  NXP PN547 Near Field Communication controller support.
+	  This option enables device driver support for the NFC.
+	  It is used by many services. NFC is fully controlled using I2C
+	  to communicate the AP chip.
+
+config NFC_PN547_PMC8974_CLK_REQ
+	bool "NXP PN547 NFC Controller Driver"
+	depends on I2C
+	default n
+	help
+	  PM8941 Clock request for NXP PN547 Near Field
+	  Communication controller support.
+	  This option enables d1 clock for NFC.
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
