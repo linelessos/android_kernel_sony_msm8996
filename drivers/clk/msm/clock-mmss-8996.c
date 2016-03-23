@@ -1520,6 +1520,7 @@ static struct rcg_clk extpclk_clk_src = {
 		.flags = CLKFLAG_NO_RATE_CACHE,
 		VDD_DIG_FMAX_MAP3(LOWER, 150000000, LOW, 300000000,
 							NOMINAL, 600000000),
+		.flags = CLKFLAG_NO_RATE_CACHE,
 		CLK_INIT(extpclk_clk_src.c),
 	},
 };
@@ -3771,6 +3772,7 @@ int msm_mmsscc_8996_probe(struct platform_device *pdev)
 	ext_byte1_clk_src.c.flags = CLKFLAG_NO_RATE_CACHE;
 	ext_extpclk_clk_src.dev = &pdev->dev;
 	ext_extpclk_clk_src.clk_id = "extpclk_src";
+	ext_extpclk_clk_src.c.flags = CLKFLAG_NO_RATE_CACHE;
 
 	efuse = readl_relaxed(gpu_base);
 	gpu_speed_bin = ((efuse >> EFUSE_SHIFT_v3) & EFUSE_MASK_v3);
