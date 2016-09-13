@@ -65,7 +65,6 @@ struct tof_sensor_info {
 struct tof_sensor_data {
 	struct i2c_client *client;
 	struct regulator *avdd;
-	struct regulator *vio;
 	uint32_t min_voltage;
 	uint32_t max_voltage;
 	uint8_t power_up;
@@ -75,8 +74,6 @@ struct tof_sensor_data {
 	struct pinctrl_state *gpio_state_active;
 	struct pinctrl_state *gpio_state_suspend;
 	struct tof_sensor_info info;
-	int tof_reset_gpio;
-	int vio_enable;
 	uint32_t ref_cnt;
 };
 
@@ -92,31 +89,10 @@ static int tof_sensor_power_init(struct tof_sensor_data *data)
 				"Regulator get failed, avdd, rc = %d\n", rc);
 			return rc;
 		}
-		if (data->vio_enable) {
-			data->vio = regulator_get(&data->client->dev, "tof_vio");
-			if (IS_ERR(data->vio)) {
-				rc = PTR_ERR(data->vio);
-				LOGE(&data->client->dev,
-					"Regulator get failed, vio, rc = %d\n", rc);
-				return rc;
-			}
-		}
 		LOGI(&data->client->dev, "%s: power init, regulator get OK",
 			__func__);
 	}
 
-	return rc;
-}
-
-static int tof_sensor_power_deinit(struct tof_sensor_data *data)
-{
-	int rc = 0;
-	if (!data)
-		return -EINVAL;
-	if (data->avdd)
-		regulator_put(data->avdd);
-	if (data->vio_enable && data->vio)
-		regulator_put(data->vio);
 	return rc;
 }
 
@@ -151,28 +127,11 @@ static int tof_sensor_pinctrl_init(struct tof_sensor_data *data)
 	return 0;
 }
 
-static int tof_sensor_gpio_init(struct tof_sensor_data *data)
-{
-	int rc = 0;
-	int flag = 0;
-
-	rc = gpio_request_one(data->tof_reset_gpio, flag, "tof-reset-gpio");
-	if (rc) {
-		LOGE(&data->client->dev,
-			"%s:%d Getting reset gpio failed\n",
-			__func__, __LINE__);
-		return -EINVAL;
-	} else {
-		return 0;
-	}
-}
-
 static int tof_sensor_parse_dt(struct tof_sensor_data *data)
 {
 	int rc = 0;
 	const char *name = NULL;
 	uint32_t val_u32 = 0;
-	int32_t idx = 0;
 
 	rc = of_property_read_string_index(data->client->dev.of_node,
 		"sony,tof-sensor-name", 0, (const char **)(&name));
@@ -198,19 +157,6 @@ static int tof_sensor_parse_dt(struct tof_sensor_data *data)
 	}
 	data->info.facing = val_u32;
 
-	idx = of_property_match_string(data->client->dev.of_node,
-		"tof-supply_name", "tof_vio");
-	if (idx < 0) {
-		data->vio_enable = 0;
-		LOGI(&data->client->dev,
-			"%s: Regulator tof_vio does not need", __func__);
-	} else {
-		data->vio_enable = 1;
-	}
-
-	data->tof_reset_gpio = of_get_named_gpio(data->client->dev.of_node,
-		"tof-reset-gpio", 0);
-
 	LOGD(&data->client->dev, "%s name %s, need_camera_on %d, facing %d\n",
 		__func__, data->info.name, data->info.need_camera_on,
 		data->info.facing);
@@ -234,7 +180,6 @@ static ssize_t tof_sensor_power_ctl(struct device *dev,
 {
 	struct tof_sensor_data *data = dev_get_drvdata(dev);
 	int rc = 0;
-	int rc2 = 0;
 	unsigned long value = 0;
 
 	LOGD(&data->client->dev,
@@ -271,33 +216,10 @@ static ssize_t tof_sensor_power_ctl(struct device *dev,
 		}
 		if (!rc && !data->ref_cnt && !data->info.need_camera_on) {
 			rc = regulator_enable(data->avdd);
-			if (data->vio_enable) {
-				rc2 = regulator_enable(data->vio);
-				if (!rc && rc2) {
-					rc = rc2;
-				}
-			}
 			if (rc) {
 				LOGE(&data->client->dev,
 					"Regulator avdd enable failed rc=%d",
 					rc);
-				pinctrl_select_state(data->pinctrl,
-					data->gpio_state_suspend);
-				free_irq(data->client->irq, data);
-				return count;
-			}
-			usleep_range(3000, 4000);
-		}
-		if (!rc && !data->ref_cnt && !data->info.need_camera_on) {
-			rc = gpio_direction_output(data->tof_reset_gpio, 1);
-			if (rc) {
-				LOGE(&data->client->dev,
-					"%s: reset enable failed",
-					__func__);
-				regulator_disable(data->avdd);
-				free_irq(data->client->irq, data);
-				pinctrl_select_state(data->pinctrl,
-					data->gpio_state_suspend);
 				return count;
 			}
 			LOGD(&data->client->dev,
@@ -313,41 +235,22 @@ static ssize_t tof_sensor_power_ctl(struct device *dev,
 			data->ref_cnt--;
 		}
 		if (!data->ref_cnt && !data->info.need_camera_on) {
-			rc = gpio_direction_output(data->tof_reset_gpio, 0);
-			if (rc)
-				LOGE(&data->client->dev,
-					"%s: reset disable failed",
-					__func__);
-			else {
-				data->power_up = 0;
-				LOGD(&data->client->dev,
-					"%s: reset disable ok",
-					__func__);
-			}
-		}
-		if (!data->ref_cnt && !data->info.need_camera_on) {
 			usleep_range(3000, 4000);
 			rc = regulator_disable(data->avdd);
-			if (data->vio_enable) {
-				rc2 = regulator_disable(data->vio);
-				if (!rc && rc2) {
-					rc = rc2;
-				}
-			}
 			if (rc) {
 				LOGE(&data->client->dev,
 					"%s: Regulator avdd disable failed ",
 					__func__);
 			} else {
+				data->power_up = 0;
 				LOGD(&data->client->dev,
 					"%s: power up regulator disable OK",
 					__func__);
 			}
 		}
-		if (!data->ref_cnt)
-			free_irq(data->client->irq, data);
 		if (!data->ref_cnt &&
 			data->pinctrl && data->gpio_state_suspend) {
+			free_irq(data->client->irq, data);
 			rc = pinctrl_select_state(data->pinctrl,
 				data->gpio_state_suspend);
 			if (rc)
@@ -445,13 +348,7 @@ static int tof_sensor_probe(struct i2c_client *client,
 			goto exit_free_i2c;
 		}
 	}
-	rc = tof_sensor_power_init(data);
-	if (rc) {
-		LOGE(&client->dev,
-			"%s: failed to power init", __func__);
-		goto exit_free_power;
-	}
-	tof_sensor_gpio_init(data);
+	tof_sensor_power_init(data);
 	data->ref_cnt = 0;
 
 	data->dev_name = dev_name(&client->dev);
@@ -499,8 +396,6 @@ exit_unregister_sysfs:
 	input_unregister_device(data->input);
 exit_free_dev:
 	input_free_device(data->input);
-exit_free_power:
-	tof_sensor_power_deinit(data);
 exit_free_i2c:
 	i2c_set_clientdata(data->client, NULL);
 	kfree(data);
@@ -512,8 +407,6 @@ static int tof_sensor_remove(struct i2c_client *client)
 {
 	struct tof_sensor_data *data = i2c_get_clientdata(client);
 
-	gpio_free(data->tof_reset_gpio);
-	tof_sensor_power_deinit(data);
 	sysfs_remove_link(&data->input->dev.kobj,
 		TOF_SENSOR_SYSFS_LINK_NAME);
 	input_unregister_device(data->input);
