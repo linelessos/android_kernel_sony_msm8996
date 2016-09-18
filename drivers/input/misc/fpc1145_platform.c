@@ -4,26 +4,30 @@
  * This driver will control the platform resources that the FPC fingerprint
  * sensor needs to operate. The major things are probing the sensor to check
  * that it is actually connected and let the Kernel know this and with that also
- * enabling and disabling of regulators, sensor reset line, sensor IRQ line.
+ * enabling and disabling of regulators, enabling and disabling of platform
+ * clocks, controlling GPIOs such as SPI chip select, sensor reset line, sensor
+ * IRQ line, MISO and MOSI lines.
  *
  * The driver will expose most of its available functionality in sysfs which
  * enables dynamic control of these features from eg. a user space process.
  *
  * The sensor's IRQ events will be pushed to Kernel's event handling system and
- * are exposed in the drivers event node.
+ * are exposed in the drivers event node. This makes it possible for a user
+ * space process to poll the input node and receive IRQ events easily. Usually
+ * this node is available under /dev/input/eventX where 'X' is a number given by
+ * the event system. A user space process will need to traverse all the event
+ * nodes and ask for its parent's name (through EVIOCGNAME) which should match
+ * the value in device tree named input-device-name.
+ *
+ * This driver will NOT send any SPI commands to the sensor it only controls the
+ * electrical parts.
+ *
  *
  * Copyright (c) 2015 Fingerprint Cards AB <tech@fingerprints.com>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License Version 2
  * as published by the Free Software Foundation.
- */
-/*
- * Copyright (C) 2015 Sony Mobile Communications Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2, as
- * published by the Free Software Foundation.
  */
 
 #include <linux/delay.h>
@@ -44,11 +48,14 @@
 #define PWR_ON_STEP_RANGE1 100
 #define PWR_ON_STEP_RANGE2 900
 #define NUM_PARAMS_REG_ENABLE_SET 2
+#define FPC_SYMLINK "fpc1145_device"
 
 static const char * const pctl_names[] = {
 	"fpc1145_reset_reset",
 	"fpc1145_reset_active",
 	"fpc1145_irq_active",
+	"fpc1145_ldo_enable",
+	"fpc1145_ldo_disable",
 };
 
 struct vreg_config {
@@ -59,9 +66,7 @@ struct vreg_config {
 };
 
 static const struct vreg_config const vreg_conf[] = {
-	{ "vdd_ana", 1800000UL, 1800000UL, 6000, },
 	{ "vcc_spi", 1800000UL, 1800000UL, 10, },
-	{ "vdd_io", 1800000UL, 1800000UL, 6000, },
 };
 
 struct fpc1145_data {
@@ -72,6 +77,7 @@ struct fpc1145_data {
 
 	int irq_gpio;
 	int rst_gpio;
+	int ldo_gpio;
 	struct mutex lock;
 	bool prepared;
 };
@@ -110,7 +116,7 @@ found:
 					"Unable to set voltage on %s, %d\n",
 					name, rc);
 		}
-		rc = regulator_set_load(vreg, vreg_conf[i].ua_load);
+		rc = regulator_set_optimum_mode(vreg, vreg_conf[i].ua_load);
 		if (rc < 0)
 			dev_err(dev, "Unable to set current on %s, %d\n",
 					name, rc);
@@ -270,13 +276,7 @@ static int device_prepare(struct fpc1145_data *fpc1145, bool enable)
 		if (rc)
 			goto exit;
 
-		rc = vreg_setup(fpc1145, "vdd_io", true);
-		if (rc)
-			goto exit_1;
-
-		rc = vreg_setup(fpc1145, "vdd_ana", true);
-		if (rc)
-			goto exit_2;
+		(void)select_pin_ctl(fpc1145, "fpc1145_ldo_enable");
 
 		usleep_range(PWR_ON_STEP_SLEEP,
 				PWR_ON_STEP_SLEEP + PWR_ON_STEP_RANGE2);
@@ -292,10 +292,7 @@ static int device_prepare(struct fpc1145_data *fpc1145, bool enable)
 		usleep_range(PWR_ON_STEP_SLEEP,
 				PWR_ON_STEP_SLEEP + PWR_ON_STEP_RANGE2);
 
-		(void)vreg_setup(fpc1145, "vdd_ana", false);
-exit_2:
-		(void)vreg_setup(fpc1145, "vdd_io", false);
-exit_1:
+		(void)select_pin_ctl(fpc1145, "fpc1145_ldo_disable");
 		(void)vreg_setup(fpc1145, "vcc_spi", false);
 exit:
 		fpc1145->prepared = false;
@@ -443,6 +440,10 @@ static int fpc1145_probe(struct platform_device *pdev)
 			&fpc1145->rst_gpio);
 	if (rc)
 		goto exit;
+	rc = fpc1145_request_named_gpio(fpc1145, "fpc,gpio_ldo",
+			&fpc1145->ldo_gpio);
+	if (rc)
+		goto exit;
 
 	fpc1145->fingerprint_pinctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(fpc1145->fingerprint_pinctrl)) {
@@ -495,6 +496,12 @@ static int fpc1145_probe(struct platform_device *pdev)
 		goto exit;
 	}
 
+	rc = sysfs_create_link(&dev->parent->kobj, &dev->kobj, FPC_SYMLINK);
+	if (rc) {
+		dev_err(dev, "could not add symlink\n");
+		goto exit;
+	}
+
 	if (of_property_read_bool(dev->of_node, "fpc,enable-on-boot")) {
 		dev_info(dev, "Enabling hardware\n");
 		(void)device_prepare(fpc1145, true);
@@ -509,11 +516,10 @@ static int fpc1145_remove(struct platform_device *pdev)
 {
 	struct fpc1145_data *fpc1145 = platform_get_drvdata(pdev);
 
+	sysfs_remove_link(&pdev->dev.parent->kobj, FPC_SYMLINK);
 	sysfs_remove_group(&pdev->dev.kobj, &attribute_group);
 	mutex_destroy(&fpc1145->lock);
-	(void)vreg_setup(fpc1145, "vdd_io", false);
 	(void)vreg_setup(fpc1145, "vcc_spi", false);
-	(void)vreg_setup(fpc1145, "vdd_ana", false);
 	dev_info(&pdev->dev, "%s\n", __func__);
 	return 0;
 }
@@ -556,6 +562,6 @@ module_init(fpc1145_init);
 module_exit(fpc1145_exit);
 
 MODULE_LICENSE("GPL v2");
-MODULE_AUTHOR("Aleksej Makarov <aleksej.makarov@sonymobile.com>");
+MODULE_AUTHOR("Aleksej Makarov");
 MODULE_AUTHOR("Henrik Tillman <henrik.tillman@fingerprints.com>");
 MODULE_DESCRIPTION("FPC1145 Fingerprint sensor device driver.");
