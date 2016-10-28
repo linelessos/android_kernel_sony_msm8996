@@ -41,7 +41,7 @@
 #include <linux/configfs.h>
 #include <linux/usb/composite.h>
 
-#include "configfs.h"
+#include "../configfs.h"
 
 #define NUM_PAGES	10 /* # of pages for ipc logging */
 
