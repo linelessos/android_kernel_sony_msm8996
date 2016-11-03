@@ -64,11 +64,10 @@ static void cputime_to_compat_timeval(const cputime_t cputime,
 	value->tv_sec = tv.tv_sec;
 	value->tv_usec = tv.tv_usec;
 }
-#endif
 
 #undef cputime_to_timeval
 #define cputime_to_timeval cputime_to_compat_timeval
-
+#endif
 
 /*
  * To use this file, asm/elf.h must define compat_elf_check_arch.
