@@ -153,8 +153,8 @@
 		gpios = <&tlmm 83 0x00>, /* BT_REG_ON */
 			<&tlmm 81 0x00>; /* BT_DEV_WAKE */
 		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&msm_gpio_83 &msm_gpio_81>;
-		pinctrl-1 = <&msm_gpio_83 &msm_gpio_81>;
+		pinctrl-0 = <&msm_gpio_83>;
+		pinctrl-1 = <&msm_gpio_83>;
 	};
 
 	/* UART: BLSP3 : NC */
