@@ -1649,6 +1649,12 @@ int incell_power_lock_ctrl(incell_pw_lock lock,
 
 	pr_debug("%s: status:%d --->\n", __func__, ((int)(incell->state)));
 
+	if (incell->state == INCELL_STATE_SLE000_P0 &&
+			!sp_panel_forced) {
+		incell_force_sp_on();
+		sp_panel_forced = true;
+	}
+
 	if (lock == INCELL_DISPLAY_POWER_LOCK)
 		ret = incell_power_lock(&(incell->state));
 	else
