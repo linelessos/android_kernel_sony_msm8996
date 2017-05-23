@@ -551,6 +551,7 @@
 			qcom,pmic-revid = <&pmi8994_revid>;
 			vcc_pon-supply = <&pon_perph_reg>;
 			qcom,int-pwm-freq-khz = <505>;
+			qcom,pmic-revid = <&pmi8994_revid>;
 			qcom,play-mode = "direct";
 			qcom,wave-play-rate-us = <5263>;
 			qcom,actuator-type = <0>;
