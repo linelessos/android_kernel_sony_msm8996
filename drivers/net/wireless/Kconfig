@@ -121,6 +121,7 @@ config VIRT_WIFI
 	  are wifi connections through a special rtnetlink device.
 
 source "drivers/net/wireless/controlfnc/Kconfig"
+source "drivers/net/wireless/bcmdhd/Kconfig"
 
 endif # WLAN
 
