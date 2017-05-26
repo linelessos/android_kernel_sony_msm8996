@@ -73,3 +73,4 @@ obj-$(CONFIG_CNSS_GENL) += cnss_genl/
 obj-$(CONFIG_CNSS_UTILS) += cnss_utils/
 
 obj-y                           += controlfnc/
+obj-y				+= bcmdhd/
