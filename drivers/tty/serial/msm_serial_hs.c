@@ -2343,8 +2343,10 @@ void msm_hs_resource_off(struct msm_hs_port *msm_uport)
 		msm_hs_write(uport, UART_DM_DMEN, data);
 		sps_tx_disconnect(msm_uport);
 	}
+#ifndef CONFIG_BT_MSM_SLEEP
 	if (!atomic_read(&msm_uport->client_req_state))
 		msm_hs_enable_flow_control(uport, false);
+#endif
 }
 
 void msm_hs_resource_on(struct msm_hs_port *msm_uport)
