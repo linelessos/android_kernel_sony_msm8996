@@ -375,7 +375,7 @@
 
 	timer {
 		compatible = "arm,armv8-timer";
-	        interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
 				<GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
 				<GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>,
 				<GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
@@ -640,6 +640,7 @@
 		governor = "powersave";
 		qcom,src-dst-ports = <1 512>;
 		qcom,active-only;
+		status = "ok";
 		qcom,bw-tbl =
 			<  1525 /* 200 MHz */ >,
 			<  2288 /* 300 MHz */ >,
@@ -658,6 +659,7 @@
 		governor = "powersave";
 		qcom,src-dst-ports = <1 512>;
 		qcom,active-only;
+		status = "ok";
 		qcom,bw-tbl =
 			<  1525 /* 200 MHz */ >,
 			<  2288 /* 300 MHz */ >,
@@ -741,9 +743,12 @@
 
 	msm_cpufreq: qcom,msm-cpufreq {
 		compatible = "qcom,msm-cpufreq";
-		clock-names = "l2_clk", "cpu0_clk", "cpu2_clk";
+		clock-names = "l2_clk", "cpu0_clk", "cpu1_clk", "cpu2_clk",
+				"cpu3_clk";
 		clocks = <&clock_cpu clk_cbf_clk>,
 			 <&clock_cpu clk_pwrcl_clk>,
+			 <&clock_cpu clk_pwrcl_clk>,
+			 <&clock_cpu clk_perfcl_clk>,
 			 <&clock_cpu clk_perfcl_clk>;
 
 		qcom,governor-per-policy;
