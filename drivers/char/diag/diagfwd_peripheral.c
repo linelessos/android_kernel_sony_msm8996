@@ -1315,7 +1315,7 @@ int diagfwd_channel_open(struct diagfwd_info *fwd_info)
 			 __func__, fwd_info->peripheral, fwd_info->type);
 		return 0;
 	}
-	mutex_lock(&driver->diagfwd_channel_mutex[fwd_info->peripheral]);
+
 	fwd_info->ch_open = 1;
 	diagfwd_buffers_init(fwd_info);
 
@@ -1340,7 +1340,7 @@ int diagfwd_channel_open(struct diagfwd_info *fwd_info)
 		if (fwd_info->p_ops && fwd_info->p_ops->open)
 			fwd_info->p_ops->open(fwd_info->ctxt);
 	}
-	mutex_unlock(&driver->diagfwd_channel_mutex[fwd_info->peripheral]);
+
 	return 0;
 }
 
@@ -1353,7 +1353,6 @@ int diagfwd_channel_close(struct diagfwd_info *fwd_info)
 	if (fwd_info->type == TYPE_CNTL)
 		flush_workqueue(driver->cntl_wq);
 
-	mutex_lock(&driver->diagfwd_channel_mutex[fwd_info->peripheral]);
 	fwd_info->ch_open = 0;
 	if (fwd_info && fwd_info->c_ops && fwd_info->c_ops->close)
 		fwd_info->c_ops->close(fwd_info);
@@ -1377,7 +1376,7 @@ int diagfwd_channel_close(struct diagfwd_info *fwd_info)
 	}
 	DIAG_LOG(DIAG_DEBUG_PERIPHERALS, "p: %d t: %d considered closed\n",
 		 fwd_info->peripheral, fwd_info->type);
-	mutex_unlock(&driver->diagfwd_channel_mutex[fwd_info->peripheral]);
+
 	return 0;
 }
 
