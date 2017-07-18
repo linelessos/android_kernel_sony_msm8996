@@ -51,6 +51,8 @@
 		qcom,mdss-pan-physical-height-dimension = <114>;
 		somc,pw-wait-after-on-touch-reset-first = <90>;
 		somc,pw-wait-after-on-touch-int-n = <10>;
+		qcom,dynamic-mode-switch-enabled;
+		qcom,dynamic-mode-switch-type = "dynamic-resolution-switch-susres";
 		qcom,mdss-dsi-te-pin-select = <1>;
 		qcom,mdss-dsi-wr-mem-start = <0x2c>;
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
@@ -441,6 +443,8 @@
 		qcom,mdss-dsi-off-command = [
 				05 01 00 00 00 00 01 28
 				05 01 00 00 78 00 01 10];
+		qcom,dynamic-mode-switch-enabled;
+		qcom,dynamic-mode-switch-type = "dynamic-resolution-switch-susres";
 		qcom,mdss-dsi-te-pin-select = <1>;
 		qcom,mdss-dsi-wr-mem-start = <0x2c>;
 		qcom,mdss-dsi-wr-mem-continue = <0x3c>;
@@ -875,6 +879,8 @@
 
 		somc,mdss-dsi-disp-on-in-hs = <0>;
 		somc,mdss-dsi-wait-time-before-post-on-cmd = <0>;
+		qcom,dynamic-mode-switch-enabled;
+		qcom,dynamic-mode-switch-type = "dynamic-resolution-switch-susres";
 
 		qcom,mdss-dsi-display-timings {
 			1080p60 {
