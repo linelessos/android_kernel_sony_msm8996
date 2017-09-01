@@ -4492,7 +4492,7 @@ static int sdm845_tdm_snd_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	int ret = 0;
 	int channels, slot_width, slots;
-	unsigned int slot_mask;
+	unsigned int slot_mask, rate, clk_freq;
 	unsigned int slot_offset[8] = {0, 4, 8, 12, 16, 20, 24, 28};
 
 	slot_width = 32;
@@ -4550,7 +4550,15 @@ static int sdm845_tdm_snd_hw_params(struct snd_pcm_substream *substream,
 		ret = -EINVAL;
 		pr_err("%s: invalid use case, err:%d\n",
 			__func__, ret);
+		goto end;
 	}
+
+	rate = params_rate(params);
+	clk_freq = rate * slot_width * slots;
+	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, clk_freq, SND_SOC_CLOCK_OUT);
+	if (ret < 0)
+		pr_err("%s: failed to set tdm clk, err:%d\n",
+			__func__, ret);
 
 end:
 	return ret;
