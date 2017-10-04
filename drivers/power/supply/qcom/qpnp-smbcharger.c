@@ -43,6 +43,7 @@
 #include <linux/ktime.h>
 #include <linux/extcon.h>
 #include "pmic-voter.h"
+#include "battery.h"
 
 #ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
 #define WAIT_TO_READ_DPDM_AT_PROBE_MS	50
@@ -9179,6 +9180,12 @@ static int smbchg_probe(struct platform_device *pdev)
 		dev_err(chip->dev, "failed to register extcon device\n");
 		goto votables_cleanup;
 	}
+	rc = qcom_batt_init();
+	if (rc < 0) {
+		dev_err(chip->dev, "Couldn't init qcom battery driver rc=%d\n",
+			rc);
+		goto votables_cleanup;
+	}
 
 	chip->usb_psy_d.name = "usb";
 	chip->usb_psy_d.type = POWER_SUPPLY_TYPE_USB;
@@ -9481,6 +9488,8 @@ static void smbchg_shutdown(struct platform_device *pdev)
 	pr_smb(PR_MISC, "Wait 1S to settle\n");
 	msleep(1000);
 	chip->hvdcp_3_det_ignore_uv = false;
+
+	qcom_batt_deinit();
 
 	pr_smb(PR_STATUS, "wrote power off configurations\n");
 }
