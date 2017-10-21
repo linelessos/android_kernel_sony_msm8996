@@ -50,6 +50,13 @@
 #define SCM_DLOAD_MINIDUMP		0X20
 #define SCM_DLOAD_BOTHDUMPS	(SCM_DLOAD_MINIDUMP | SCM_DLOAD_FULLDUMP)
 
+#if defined(CONFIG_ARCH_SONY_LOIRE) || defined(CONFIG_ARCH_SONY_TONE)
+ #define TARGET_SOMC_S1BOOT
+#endif
+#if defined(CONFIG_ARCH_SONY_YOSHINO)
+ #define TARGET_SOMC_XBOOT
+#endif
+
 static int restart_mode;
 static void *restart_reason;
 static bool scm_pmic_arbiter_disable_supported;
@@ -70,6 +77,19 @@ static int download_mode;
 static const int download_mode;
 #endif
 
+static int in_panic;
+static int panic_prep_restart(struct notifier_block *this,
+			      unsigned long event, void *ptr)
+{
+	in_panic = 1;
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block panic_blk = {
+	.notifier_call	= panic_prep_restart,
+};
+
+
 #ifdef CONFIG_QCOM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
 #define DL_MODE_PROP "qcom,msm-imem-download_mode"
@@ -77,7 +97,6 @@ static const int download_mode;
 #define KASLR_OFFSET_PROP "qcom,msm-imem-kaslr_offset"
 #endif
 
-static int in_panic;
 static int dload_type = SCM_DLOAD_FULLDUMP;
 static void *dload_mode_addr;
 static bool dload_mode_enabled;
@@ -106,17 +125,6 @@ struct reset_attribute {
 
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
-
-static int panic_prep_restart(struct notifier_block *this,
-			      unsigned long event, void *ptr)
-{
-	in_panic = 1;
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block panic_blk = {
-	.notifier_call	= panic_prep_restart,
-};
 
 static int scm_set_dload_mode(int arg1, int arg2)
 {
@@ -302,20 +310,18 @@ static void msm_restart_prepare(const char *cmd)
 	if (force_warm_reboot)
 		pr_info("Forcing a warm reset of the system\n");
 
-#if defined(CONFIG_ARCH_SONY_LOIRE) || defined(CONFIG_ARCH_SONY_TONE)
+#if defined(TARGET_SOMC_S1BOOT) || defined(TARGET_SOMC_XBOOT)
 	/* Force warm reset and allow device to
-	 * preserve memory on restart 
-	 * only for bootloader and recovery commands */
+	 * preserve memory on restart for kernel
+	 * panic or for bootloader and recovery
+	 * commands */
 	if (cmd != NULL) {
 		if ((!strncmp(cmd, "bootloader", 10)) ||
-				(!strncmp(cmd, "recovery", 8)))
+		    (!strncmp(cmd, "recovery", 8)) || in_panic)
 			need_warm_reset = true;
 		else
 			need_warm_reset = false;
 	}
-#else
-	/* Force hard reset for SoMC XBOOT */
-	need_warm_reset = false;
 #endif
 
 	if (need_warm_reset)
@@ -329,11 +335,13 @@ static void msm_restart_prepare(const char *cmd)
 				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
+#ifdef TARGET_SOMC_XBOOT
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_OEM_F);
+			__raw_writel(0x6f656d46, restart_reason); //oem-F
+#else
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RECOVERY);
-#if defined(CONFIG_ARCH_SONY_LOIRE) || defined(CONFIG_ARCH_SONY_TONE)
-			__raw_writel(0x6f656d46, restart_reason); //oem-46
-#else
 			__raw_writel(0x77665502, restart_reason);
 #endif
 		} else if (!strcmp(cmd, "rtc")) {
@@ -383,13 +391,22 @@ static void msm_restart_prepare(const char *cmd)
 			enable_emergency_dload_mode();
 		} else {
 			pr_notice("%s : cmd is %s, set to reboot mode\n", __func__, cmd);
+#ifdef TARGET_SOMC_XBOOT
+			qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
+#else
 			qpnp_pon_set_restart_reason(PON_RESTART_REASON_REBOOT);
+#endif
 			__raw_writel(0x77665501, restart_reason);
 		}
 	} else {
 		pr_notice("%s : cmd is NULL, set to reboot mode\n", __func__);
+#ifdef TARGET_SOMC_XBOOT
+		qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
+		__raw_writel(0x77665501, restart_reason);
+#else
 		qpnp_pon_set_restart_reason(PON_RESTART_REASON_REBOOT);
 		__raw_writel(0x776655AA, restart_reason);
+#endif
 	}
 
 	flush_cache_all();
@@ -455,6 +472,9 @@ static void do_msm_poweroff(void)
 	set_dload_mode(0);
 	scm_disable_sdi();
 	qpnp_pon_system_pwr_off(PON_POWER_OFF_SHUTDOWN);
+#ifdef TARGET_SOMC_XBOOT
+	qpnp_pon_set_restart_reason(PON_RESTART_REASON_NONE);
+#endif
 
 	halt_spmi_pmic_arbiter();
 	deassert_ps_hold();
@@ -616,11 +636,12 @@ static int msm_restart_probe(struct platform_device *pdev)
 	struct device_node *np;
 	int ret = 0;
 
+	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
+
 #ifdef CONFIG_QCOM_DLOAD_MODE
 	if (scm_is_call_available(SCM_SVC_BOOT, SCM_DLOAD_CMD) > 0)
 		scm_dload_supported = true;
 
-	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 	np = of_find_compatible_node(NULL, NULL, DL_MODE_PROP);
 	if (!np) {
 		pr_err("unable to find DT imem DLOAD mode node\n");
@@ -733,8 +754,10 @@ skip_sysfs_create:
 	__raw_writel(0xC0DEDEAD, restart_reason);
 	qpnp_pon_set_restart_reason(PON_RESTART_REASON_KERNEL_PANIC);
 
+#ifdef TARGET_SOMC_XBOOT
 	__raw_writel(0xC0DEDEAD, restart_reason);
 	qpnp_pon_set_restart_reason(PON_RESTART_REASON_KERNEL_PANIC);
+#endif
 
 	return 0;
 
