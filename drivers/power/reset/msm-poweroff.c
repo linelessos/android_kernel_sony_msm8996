@@ -310,7 +310,7 @@ static void msm_restart_prepare(const char *cmd)
 	if (force_warm_reboot)
 		pr_info("Forcing a warm reset of the system\n");
 
-#if defined(TARGET_SOMC_S1BOOT) || defined(TARGET_SOMC_XBOOT)
+#if defined(TARGET_SOMC_XBOOT)
 	/* Force warm reset and allow device to
 	 * preserve memory on restart for kernel
 	 * panic or for bootloader and recovery
@@ -322,6 +322,8 @@ static void msm_restart_prepare(const char *cmd)
 		else
 			need_warm_reset = false;
 	}
+#elif defined(TARGET_SOMC_S1BOOT)
+	need_warm_reset = true;
 #endif
 
 	if (need_warm_reset)
