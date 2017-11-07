@@ -415,9 +415,6 @@ static void msm_restart_prepare(const char *cmd)
 #if defined(TARGET_SOMC_XBOOT) || defined(TARGET_SOMC_S1BOOT)
 		qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
 		__raw_writel(0x77665501, restart_reason);
-#elif defined(TARGET_SOMC_S1BOOT)
-		qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
-		__raw_writel(0x776655AA, restart_reason);
 #else
 		qpnp_pon_set_restart_reason(PON_RESTART_REASON_REBOOT);
 		__raw_writel(0x776655AA, restart_reason);
