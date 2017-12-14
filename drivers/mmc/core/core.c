@@ -2455,6 +2455,7 @@ void mmc_ungate_clock(struct mmc_host *host)
 		WARN_ON(host->ios.clock);
 		/* This call will also set host->clk_gated to false */
 		__mmc_set_clock(host, host->clk_old);
+#ifndef CONFIG_ARCH_SONY_LOIRE
 		/*
 		 * We have seen that host controller's clock tuning circuit may
 		 * go out of sync if controller clocks are gated.
@@ -2462,6 +2463,7 @@ void mmc_ungate_clock(struct mmc_host *host)
 		 * tuning circuit after ungating the controller clocks.
 		 */
 		mmc_retune_needed(host);
+#endif
 	}
 }
 
