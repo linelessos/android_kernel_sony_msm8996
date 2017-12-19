@@ -156,6 +156,10 @@ struct sdhci_msm_pltfm_data {
 	u32 ice_clk_min;
 	struct sdhci_msm_pm_qos_data pm_qos_data;
 	bool sdr104_wa;
+
+#ifdef CONFIG_WIFI_CONTROL_FUNC
+	bool use_for_wifi;
+#endif
 };
 
 struct sdhci_msm_bus_vote {
@@ -238,9 +242,6 @@ struct sdhci_msm_host {
 	bool temp_control_scaling;
 	atomic_t clk_scaling_disable;
 	struct threshold_info tsens_threshold_config;
-#ifdef CONFIG_WIFI_CONTROL_FUNC
-	bool use_for_wifi;
-#endif
 };
 
 extern char *saved_command_line;
