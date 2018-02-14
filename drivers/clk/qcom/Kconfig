@@ -242,6 +242,14 @@ config MSM_DISPCC_SDM845
 	  Say Y if you want to support display devices and functionality such as
 	  splash screen.
 
+config MSM_APCC_8996
+	tristate "MSM8996 CPU Clock Controller"
+	depends on COMMON_CLK_QCOM
+	help
+	  Support for the CPU clock controller on msm8996 devices.
+	  Say Y if you want to support CPU clock scaling using CPUfreq
+	  drivers for dyanmic power management.
+
 config CLOCK_QPNP_DIV
 	tristate "QPNP PMIC clkdiv driver"
 	depends on COMMON_CLK_QCOM && SPMI
