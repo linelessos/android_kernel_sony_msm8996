@@ -162,6 +162,9 @@ struct sdhci_msm_pltfm_data {
 	bool rclk_wa;
 	u32 *bus_clk_table;
 	unsigned char bus_clk_cnt;
+#ifdef CONFIG_WIFI_CONTROL_FUNC
+	bool use_for_wifi;
+#endif
 };
 
 struct sdhci_msm_bus_vote {
@@ -277,9 +280,6 @@ struct sdhci_msm_host {
 	struct workqueue_struct *pm_qos_wq;
 	bool need_dll_user_ctl;
 	struct sdhci_msm_dll_hsr *dll_hsr;
-#ifdef CONFIG_WIFI_CONTROL_FUNC
-	bool use_for_wifi;
-#endif
 };
 
 extern char *saved_command_line;
