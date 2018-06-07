@@ -241,6 +241,16 @@ config ARCH_SDM439
 	  This enables support for the sdm439 chipset. If you do not
 	  wish to build a kernel that runs on this chipset, say 'N' here.
 
+config ARCH_MSM8996
+    bool "Enable Support for Qualcomm Technologies, Inc. MSM8996"
+	depends on ARCH_QCOM
+	select COMMON_CLK
+	select COMMON_CLK_QCOM
+	select QCOM_GDSC
+	help
+	This enables support for the MSM8996 chipset. If you do not
+	wish to build a kernel that runs on this chipset, say 'N' here.
+
 config ARCH_ROCKCHIP
 	bool "Rockchip Platforms"
 	select ARCH_HAS_RESET_CONTROLLER
