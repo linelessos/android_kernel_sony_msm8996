@@ -13,11 +13,6 @@
 #ifndef __MDSS_PLL_H
 #define __MDSS_PLL_H
 
-#ifdef CONFIG_FB_MSM_MDSS /* MDSS - FBDEV */
-#include <linux/mdss_io_util.h>
-#else /* SDE - DRM */
-#include <linux/sde_io_util.h>
-#endif
 #include <linux/clk-provider.h>
 #include <linux/io.h>
 #include <linux/clk.h>
@@ -34,6 +29,11 @@
 #define LEGACY_GDSC_TARGET
 #endif
 
+#if defined(CONFIG_DRM)
+#include <linux/sde_io_util.h>
+#else
+#include <linux/mdss_io_util.h>
+#endif
 
 #define MDSS_PLL_REG_W(base, offset, data)	\
 				writel_relaxed((data), (base) + (offset))
