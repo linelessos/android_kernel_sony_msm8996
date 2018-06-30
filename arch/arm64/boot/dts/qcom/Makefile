@@ -2,6 +2,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= apq8016-sbc.dtb msm8916-mtp.dtb
 #dtb-$(CONFIG_ARCH_QCOM)	+= msm8996-mtp.dtb
 #dtb-$(CONFIG_ARCH_QCOM)	+= apq8096-db820c.dtb
 
+ifeq ($(CONFIG_ARCH_QCOM_BUILD_REFERENCE),y)
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 	dtbo-$(CONFIG_ARCH_SDM845) += \
 		sdm845-cdp-overlay.dtbo \
@@ -530,14 +531,6 @@ sda429-bg-dvt2-wtp-overlay.dtbo-base := sda429-bg-dvt2-wtp.dtb
 sdm429-bg-wdp-overlay.dtbo-base := sdm429-bg-wdp.dtb
 sda429-bg-wdp-overlay.dtbo-base := sda429-bg-wdp.dtb
 else
-# MSM8996
-dtb-$(CONFIG_MACH_SONY_DORA)            += msm8996-v3.0-pmi8996-tone-dora_generic.dtb
-dtb-$(CONFIG_MACH_SONY_DORA)            += msm8996-v3-pmi8996-tone-dora_generic.dtb
-dtb-$(CONFIG_MACH_SONY_KAGURA)          += msm8996-v3.0-pmi8996-tone-kagura_generic.dtb
-dtb-$(CONFIG_MACH_SONY_KAGURA)          += msm8996-v3-pmi8996-tone-kagura_generic.dtb
-dtb-$(CONFIG_MACH_SONY_KEYAKI)          += msm8996-v3.0-pmi8996-tone-keyaki_generic.dtb
-dtb-$(CONFIG_MACH_SONY_KEYAKI)          += msm8996-v3-pmi8996-tone-keyaki_generic.dtb
-
 dtb-$(CONFIG_ARCH_MSM8953) += msm8953-cdp.dtb \
 	msm8953-mtp.dtb \
 	msm8953-ext-codec-mtp.dtb \
@@ -678,6 +671,19 @@ dtb-$(CONFIG_ARCH_SDM429) += sdm429-mtp.dtb \
 	sda429-spyro-dvt.dtb \
 	sdm429-bg-iot-wtp.dtb
 
+endif
+endif # CONFIG_ARCH_QCOM_BUILD_REFERENCE
+
+ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
+else
+
+# MSM8996
+dtb-$(CONFIG_MACH_SONY_DORA)            += msm8996-v3.0-pmi8996-tone-dora_generic.dtb
+dtb-$(CONFIG_MACH_SONY_DORA)            += msm8996-v3-pmi8996-tone-dora_generic.dtb
+dtb-$(CONFIG_MACH_SONY_KAGURA)          += msm8996-v3.0-pmi8996-tone-kagura_generic.dtb
+dtb-$(CONFIG_MACH_SONY_KAGURA)          += msm8996-v3-pmi8996-tone-kagura_generic.dtb
+dtb-$(CONFIG_MACH_SONY_KEYAKI)          += msm8996-v3.0-pmi8996-tone-keyaki_generic.dtb
+dtb-$(CONFIG_MACH_SONY_KEYAKI)          += msm8996-v3-pmi8996-tone-keyaki_generic.dtb
 endif
 
 dtb-$(CONFIG_ARCH_SDM845_VM) += sdm845-vm.dtb
