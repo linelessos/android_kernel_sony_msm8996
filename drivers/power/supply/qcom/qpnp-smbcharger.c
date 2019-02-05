@@ -4404,7 +4404,7 @@ static void smbchg_chg_led_brightness_set(struct led_classdev *cdev,
 	u8 reg;
 	int rc;
 
-	if (!is_bms_psy_present(chip)) {
+	if (!chip->bms_psy) {
 		dev_err(chip->dev, "Couldn't access bms psy\n");
 		return;
 	}
@@ -4456,7 +4456,7 @@ static void smbchg_chg_led_blink_set(struct smbchg_chip *chip,
 	u8 reg;
 	int rc;
 
-	if (!is_bms_psy_present(chip)) {
+	if (!chip->bms_psy) {
 		dev_err(chip->dev, "Couldn't access bms psy\n");
 		return;
 	}
