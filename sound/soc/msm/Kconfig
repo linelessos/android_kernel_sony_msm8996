@@ -51,6 +51,24 @@ config DOLBY_DS2
 	 device, end point dependent post processing parameters and
 	 the various posrt processing parameters
 
+config AHC
+	bool "Enable Automatic Headset Compensation"
+	depends on SND_SOC_MSM_QDSP6V2_INTF
+	help
+	 To add support for Automatic Headset Compensation post processing.
+	 This support is to configure the post processing parameters
+	 to DSP. The configuration includes enabling and setting up
+	 the IIR tuning filter and MBDRC in the DSP.
+
+config FORCE_24BIT_COPP
+	bool "Configure COPP in ADSP as 24-bit"
+	depends on SND_SOC_MSM_QDSP6V2_INTF
+	default n
+	help
+	 To configure COPP in ADSP as 24bit for media playback.
+	 This can avoid quantization error for 16-bit media playback
+	 when IIR/MBDRC filters are enabled.
+
 config DOLBY_LICENSE
 	bool "Enable Dolby LICENSE"
 	depends on SND_SOC_MSM_QDSP6V2_INTF
@@ -187,6 +205,7 @@ config SND_SOC_MSM8996
 	select MSM_QDSP6V2_CODECS
 	select SND_SOC_WCD9335
 	select SND_SOC_WSA881X
+	select SND_SOC_WCD9330
 	select SND_SOC_MSM_HDMI_CODEC_RX if ARCH_MSM8996
 	select DTS_SRS_TM
 	select QTI_PP

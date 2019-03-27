@@ -94,6 +94,9 @@ struct msm_pcm_channel_mixer {
 	int override_cfg;
 };
 
+int adm_matrix_mute(int port_id, int session_id, uint32_t ramp_duration,
+		uint32_t mute_flag_ch1, uint32_t mute_flag_ch2);
+
 int srs_trumedia_open(int port_id, int copp_idx, __s32 srs_tech_id,
 		      void *srs_params);
 
@@ -117,6 +120,10 @@ int adm_send_params_v5(int port_id, int copp_idx, char *params,
 
 int adm_dolby_dap_send_params(int port_id, int copp_idx, char *params,
 			      uint32_t params_length);
+
+
+int adm_ahc_send_params(int port_id, int copp_idx, char *params,
+			uint32_t params_length);
 
 int adm_set_pp_params(int port_id, int copp_idx,
 		      struct mem_mapping_hdr *mem_hdr, u8 *param_data,
