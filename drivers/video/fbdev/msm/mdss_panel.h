@@ -10,6 +10,11 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #ifndef MDSS_PANEL_H
 #define MDSS_PANEL_H
@@ -935,6 +940,10 @@ struct mdss_panel_info {
 
 	/* esc clk recommended for the panel */
 	u32 esc_clk_rate_hz;
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	const char *panel_id_name;
+	int dsi_master;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 };
 
 struct mdss_panel_timing {
@@ -976,6 +985,10 @@ struct mdss_panel_data {
 	void (*set_backlight) (struct mdss_panel_data *pdata, u32 bl_level);
 	int (*apply_display_setting)(struct mdss_panel_data *pdata, u32 mode);
 	unsigned char *mmss_cc_base;
+
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	struct platform_device *panel_pdev;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 	/**
 	 * event_handler() - callback handler for MDP core events
