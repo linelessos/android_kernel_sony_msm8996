@@ -21,17 +21,38 @@
 	};
 
 	reserved-memory {
-		debug_region: debug_region@a7e00000 {
-			compatible = "removed-dma-pool", "qcom,debug_memory";
-			no-map;
-			reg = <0 0xa7e00000 0 0x100000>;
-			label = "debug_mem";
-		};
-
-		pstore_reserve_mem: pstore_reserve_mem_region_region@a7f00000 {
+		pstore_reserve_mem: pstore_reserve_mem_region@a7f00000 {
 			compatible = "removed-dma-pool";
 			no-map;
 			reg = <0 0xa7f00000 0 0x00100000>;
+		};
+	};
+
+	firmware: firmware {
+		android {
+			compatible = "android,firmware";
+			fstab {
+				compatible = "android,fstab";
+				vendor {
+					status = "disabled";
+				};
+				system {
+					compatible = "android,system";
+					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/system";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1";
+					fsmgr_flags = "wait,verify";
+					status = "ok";
+				};
+				odm {
+					compatible = "android,odm";
+					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/oem";
+					type = "ext4";
+					mnt_flags = "ro,barrier=1";
+					fsmgr_flags = "wait";
+					status = "ok";
+				};
+			};
 		};
 	};
 };
@@ -107,6 +128,7 @@
 		/delete-property/ qcom,rx-char-to-inject;
 		qcom,bam-tx-ep-pipe-index = <2>;
 		qcom,bam-rx-ep-pipe-index = <3>;
+		qcom,bluetooth-serial-port;
 		pinctrl-names = "default", "sleep";
 		pinctrl-0 = <&msm_gpio_41 &msm_gpio_42 &msm_gpio_43 &msm_gpio_44_active>;
 		pinctrl-1 = <&msm_gpio_41 &msm_gpio_42 &msm_gpio_43 &msm_gpio_44_suspend>;
@@ -157,8 +179,8 @@
 		clocks = <&clock_gcc clk_gcc_blsp1_ahb_clk>,
 			<&clock_gcc clk_gcc_blsp1_qup3_i2c_apps_clk>;
 		pinctrl-names = "i2c_active", "i2c_sleep";
-		pinctrl-0 = <&msm_gpio_47 &msm_gpio_48>;
-		pinctrl-1 = <&msm_gpio_47 &msm_gpio_48>;
+		pinctrl-0 = <&i2c_3_active>;
+		pinctrl-1 = <&i2c_3_sleep>;
 		status = "disabled";
 	};
 
@@ -466,18 +488,6 @@
 		};
 	};
 
-	mdss_dsi: qcom,mdss_dsi@0 {
-		mdss_dsi0: qcom,mdss_dsi_ctrl0@994000 {
-			vddio-supply = <&pm8994_s4>;
-			touch-avdd-supply = <&pm8994_l22>;
-		};
-
-		mdss_dsi1: qcom,mdss_dsi_ctrl1@996000 {
-			vddio-supply = <&pm8994_s4>;
-			touch-avdd-supply = <&pm8994_l22>;
-		};
-	};
-
 	dsi_panel_pwr_supply_hybrid_incell: dsi_panel_pwr_supply_hybrid_incell {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -553,9 +563,17 @@
 		/delete-node/ qcom,panel-supply-entry@3;
 	};
 
+
+
 	ramoops {
 		compatible = "pstore-ramoops";
+		status = "ok";
 		memory-region = <&pstore_reserve_mem>;
+		record-size = <0x0 0x20000>;
+		console-size = <0x0 0x40000>;
+		ftrace-size = <0x0 0x20000>;
+		pmsg-size = <0x0 0x20000>;
+		ecc-size = <16>;
 	};
 
 	qusb_phy0: qusb@7411000 {
@@ -1709,6 +1727,11 @@
 	status = "okay";
 };
 
+&pm8994_l18_pin_ctrl {
+	regulator-min-microvolt = <1800000>;
+	qcom,init-voltage = <1800000>;
+};
+
 /* pm8994_l20 */
 /* Follow QTI */
 
@@ -2488,33 +2511,31 @@
 		};
 	};
 
-	/* GPIO_47 : NC */
-	msm_gpio_47: msm_gpio_47 {
-		mux {
-			pins = "gpio47";
-			function = "gpio";
+	i2c_3 { /* BLSP1 QUP3 */
+		i2c_3_active: i2c_3_active {
+			mux {
+				pins = "gpio47", "gpio48";
+				function = "blsp_i2c3";
+			};
+
+			config {
+				pins = "gpio47", "gpio48";
+				drive-strength = <2>;
+				bias-disable;
+			};
 		};
 
-		config {
-			pins = "gpio47";
-			drive-strength = <2>;
-			bias-disable;
-			output-low;
-		};
-	};
-
-	/* GPIO_48 : NC */
-	msm_gpio_48: msm_gpio_48 {
-		mux {
-			pins = "gpio48";
-			function = "gpio";
-		};
-
-		config {
-			pins = "gpio48";
-			drive-strength = <2>;
-			bias-disable;
-			output-low;
+		i2c_3_sleep: i2c_3_sleep {
+			mux {
+				pins = "gpio47", "gpio48";
+				function = "blsp_i2c3";
+			};
+			config {
+				pins = "gpio47", "gpio48";
+				drive-strength = <2>;
+				bias-pull-down;
+				input-enable;
+			};
 		};
 	};
 
@@ -3594,6 +3615,11 @@
 	};
 };
 
+&cpp {
+	qcom,src-clock-rates = <100000000 200000000 320000000
+			384000000 480000000 640000000>;
+};
+
 /* I2C : BLSP7 */
 &i2c_7 {
 	/delete-node/ silabs4705@11;
@@ -3672,6 +3698,9 @@
 };
 
 &mdss_dsi0 {
+	vddio-supply = <&pm8994_s4>;
+	touch-avdd-supply = <&pm8994_l22>;
+	qcom,display-id = "primary";
 	qcom,dsi-pref-prim-pan = <&dsi_default_panel>;
 	pinctrl-names = "mdss_default", "mdss_sleep", "mdss_touch_active", "mdss_touch_suspend";
 	pinctrl-0 = <&mdss_dsi_active &mdss_te_active>;
@@ -3688,7 +3717,17 @@
 };
 
 &mdss_dsi1 {
+	vddio-supply = <&pm8994_s4>;
+	touch-avdd-supply = <&pm8994_l22>;
 	status = "disabled";
+};
+
+&mdss_fb0 {
+	/delete-node/ qcom,cont-splash-memory;
+};
+
+&mdss_fb2 {
+	/delete-node/ qcom,cont-splash-memory;
 };
 
 &labibb {
@@ -3770,4 +3809,8 @@
 
 &pcie0 {
 	qcom,clk-power-manage-en;
+};
+
+&wil6210 {
+	status = "disabled";
 };
