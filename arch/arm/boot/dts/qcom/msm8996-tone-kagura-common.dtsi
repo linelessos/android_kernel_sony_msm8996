@@ -29,8 +29,6 @@
 
 	/* I2C : BLSP3 */
 	i2c_3: i2c@7577000 { /* BLSP1 QUP2 */
-		pinctrl-0 = <&msm_gpio_47 &msm_gpio_48>;
-		pinctrl-1 = <&msm_gpio_47_suspend &msm_gpio_48_suspend>;
 		status = "okay";
 		tcs3490@72 {
 			compatible = "ams,tcs3490";
@@ -43,28 +41,22 @@
 			pinctrl-0 = <&msm_gpio_86>;
 			pinctrl-1 = <&msm_gpio_86_suspend>;
 		};
-		tof_sensor@52 {
-			compatible = "tof_sensor";
-			reg = <0x52>;
+		tof_sensor@29 {
+			compatible = "st,stmvl53l0";
+			reg = <0x29>;
 			interrupt-parent = <&tlmm>;
 			interrupts = <85 0x0>;
-			tof_avdd-supply = <&pm8994_lvs1>;
-			tof-supply_name = "tof_avdd";
+			vdd-supply = <&pm8994_lvs1>;
+			tof-supply_name = "vdd";
 			pinctrl-names = "tof_irq_active", "tof_irq_suspend";
 			pinctrl-0 = <&msm_gpio_85>;
 			pinctrl-1 = <&msm_gpio_85_suspend>;
-			sony,tof-sensor-name = "VL53L0";
-			sony,tof-need-cam-on = <1>;
-			sony,tof-sensor-facing = <0>;
 		};
 	};
 
 	/* I2C : BLSP12 */
 	i2c@75ba000 {
 		synaptics_clearpad@2c {
-			/* Stamina Mode */
-			stamina_mode_supported = <0x80000003>;
-
 			/* F01_RMI_CTRL05: Doze Holdoff */
 			doze_default_time = <50>;
 			doze_glove_mode_time = <50>;
@@ -673,7 +665,6 @@
 	qcom,external-typec;
 	qcom,typec-psy-name = "typec";
 	somc,typec-current-max = <2500>;
-	somc,id-polling-enabled;
 };
 
 &tlmm {
@@ -689,64 +680,6 @@
 			drive-strength = <2>;
 			bias-disable;
 			output-low;
-		};
-	};
-
-	/* GPIO_47 : RGBC-IR & ToF I2C SDA */
-	msm_gpio_47: msm_gpio_47 {
-		mux {
-			pins = "gpio47";
-			function = "blsp_i2c3";
-		};
-
-		config {
-			pins = "gpio47";
-			drive-strength = <2>;
-			bias-disable;
-			/delete-property/ output-low;
-		};
-	};
-
-	msm_gpio_47_suspend: msm_gpio_47_suspend {
-		mux {
-			pins = "gpio47";
-			function = "blsp_i2c3";
-		};
-
-		config {
-			pins = "gpio47";
-			drive-strength = <2>;
-			bias-pull-down;
-			input-enable;
-		};
-	};
-
-	/* GPIO_48 : RGBC-IR & ToF I2C SCL */
-	msm_gpio_48: msm_gpio_48 {
-		mux {
-			pins = "gpio48";
-			function = "blsp_i2c3";
-		};
-
-		config {
-			pins = "gpio48";
-			drive-strength = <2>;
-			bias-disable;
-			/delete-property/ output-low;
-		};
-	};
-
-	msm_gpio_48_suspend: msm_gpio_48_suspend {
-		mux {
-			pins = "gpio48";
-			function = "blsp_i2c3";
-		};
-
-		config {
-			pins = "gpio48";
-			drive-strength = <2>;
-			bias-pull-down;
-			input-enable;
 		};
 	};
 
@@ -935,6 +868,14 @@
 					19 511 511
 					20 511 511
 					21 511 511>;
+				qcom,start-idx = <0>;
+				qcom,idx-len = <8>;
+				qcom,lut-flags = <31>;
+				qcom,pause-lo = <500>;
+				qcom,pause-hi = <500>;
+				qcom,ramp-step-ms = <200>;
+				qcom,duty-pcts = [00 0E 1C 2A 38 46 54 64];
+				qcom,use-blink;
 			};
 			qcom,rgb_1 {
 				somc,pwm-channel = <1>;
@@ -946,6 +887,14 @@
 					19 511 511
 					20 511 511
 					21 511 511>;
+				qcom,start-idx = <0>;
+				qcom,idx-len = <8>;
+				qcom,lut-flags = <31>;
+				qcom,pause-lo = <500>;
+				qcom,pause-hi = <500>;
+				qcom,ramp-step-ms = <200>;
+				qcom,duty-pcts = [00 0E 1C 2A 38 46 54 64];
+				qcom,use-blink;
 			};
 			qcom,rgb_2 {
 				somc,pwm-channel = <0>;
@@ -957,6 +906,14 @@
 					19 511 511
 					20 511 511
 					21 511 511>;
+				qcom,start-idx = <0>;
+				qcom,idx-len = <8>;
+				qcom,lut-flags = <31>;
+				qcom,pause-lo = <500>;
+				qcom,pause-hi = <500>;
+				qcom,ramp-step-ms = <200>;
+				qcom,duty-pcts = [00 0E 1C 2A 38 46 54 64];
+				qcom,use-blink;
 			};
 		};
 		qcom,leds@d800 {
@@ -988,7 +945,6 @@
 		fusb301,int-gpio = <&tlmm 59 0x00>;
 		fusb301,cbl_det-gpio = <&tlmm 131 0x00>;
 		fusb301,use-try-snk-emulation;
-		fusb301,ext_typec_ctrl-enabled;
 	};
 };
 
@@ -997,8 +953,6 @@
 	id_polling_up_period = <500>;
 	id_polling_pd_gpio = <&tlmm 24 0>;
 	id_lv_vadc_channel = <0x79>;
-	id_polling_keep_not_dischg;
-	no_device_det_enable;
 	qcom,usb_id_lv-vadc = <&pm8994_vadc>;
 	qcom,usbin-vadc = <&pmi8994_vadc>;
 	usb_switch_sel = <&pmi8994_gpios 9 0>;
