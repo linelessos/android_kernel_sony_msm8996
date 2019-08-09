@@ -80,7 +80,7 @@ static int qns_set_ibat(int ibatmA)
 		}
 	}
 	if (ibatmA != prev_ibat_for_deblog) {
-		if(ibat_psy->set_property(ibat_psy,
+		if(power_supply_set_property(ibat_psy,
 				CHARGE_CURRENT_PROP, &propVal) != 0)
 		{
 			pr_info("QNS: ERROR: unable to set charging current! Does " IBATMANAME " have "
@@ -105,7 +105,7 @@ static bool qns_is_charging(void)
 		}
 	}
 
-	if(battery_psy->get_property(battery_psy, POWER_SUPPLY_PROP_STATUS,
+	if(power_supply_get_property(battery_psy, POWER_SUPPLY_PROP_STATUS,
 			&propVal) != 0)
 	{
 		pr_info("QNS: ERROR: unable to read charger properties! Does \"battery\" have "
@@ -140,7 +140,7 @@ static int qns_get_scvt(int *soc, int *c, int *v, int *tx10)
 	{
 		if(c != NULL)
 		{
-			if(battery_psy->get_property(battery_psy,
+			if(power_supply_get_property(battery_psy,
 					POWER_SUPPLY_PROP_CURRENT_NOW, &ret) != 0)
 			{
 				pr_info("QNS: ERROR: unable to read battery property POWER_SUPPLY_PROP_CURRENT_NOW\n");
@@ -153,7 +153,7 @@ static int qns_get_scvt(int *soc, int *c, int *v, int *tx10)
 
 		if(v != NULL)
 		{
-			if(battery_psy->get_property(battery_psy,
+			if(power_supply_get_property(battery_psy,
 					POWER_SUPPLY_PROP_VOLTAGE_NOW, &ret) != 0)
 			{
 				pr_info("QNS: ERROR: unable to read battery property POWER_SUPPLY_PROP_VOLTAGE_NOW\n");
@@ -166,7 +166,7 @@ static int qns_get_scvt(int *soc, int *c, int *v, int *tx10)
 
 		if(tx10 != NULL)
 		{
-			if(battery_psy->get_property(battery_psy,
+			if(power_supply_get_property(battery_psy,
 					POWER_SUPPLY_PROP_TEMP, &ret) != 0)
 			{
 				pr_info("QNS: ERROR: unable to read battery property POWER_SUPPLY_PROP_TEMP\n");
@@ -179,7 +179,7 @@ static int qns_get_scvt(int *soc, int *c, int *v, int *tx10)
 
 		if(soc != NULL)
 		{
-			if(battery_psy->get_property(battery_psy,
+			if(power_supply_get_property(battery_psy,
 					POWER_SUPPLY_PROP_CAPACITY, &ret) != 0)
 			{
 				pr_info("QNS: ERROR: unable to read battery property POWER_SUPPLY_PROP_CAPACITY\n");
@@ -220,7 +220,7 @@ static int qns_get_fcc(int *fcc, int *design)
 	{
 		if(fcc != NULL)
 		{
-			if(battery_psy->get_property(battery_psy,
+			if(power_supply_get_property(battery_psy,
 					POWER_SUPPLY_PROP_CHARGE_FULL, &ret) != 0)
 			{
 				pr_info("QNS: ERRROR: unable to read battery POWER_SUPPLY_PROP_CHARGE_FULL property.\n");
@@ -232,7 +232,7 @@ static int qns_get_fcc(int *fcc, int *design)
 		}
 		if(design != NULL)
 		{
-			if(battery_psy->get_property(battery_psy,
+			if(power_supply_get_property(battery_psy,
 					POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN, &ret) != 0)
 			{
 				pr_info("QNS: ERROR: unable to read battery POWER_SUPPLY_PROP_CHARGE_FULL_DESIGN property.\n");
@@ -265,7 +265,7 @@ static int qns_get_battery_type(const char **battery_type)
 	{
 		if(battery_type != NULL)
 		{
-			if(battery_psy->get_property(battery_psy,
+			if(power_supply_get_property(battery_psy,
 					POWER_SUPPLY_PROP_BATTERY_TYPE, &ret) != 0)
 			{
 				pr_info("QNS: ERRROR: unable to read battery POWER_SUPPLY_PROP_BATTERY_TYPE property.\n");
