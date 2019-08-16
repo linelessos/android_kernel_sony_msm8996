@@ -1357,10 +1357,10 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	if (of_find_property(np, "somc,ibb-output-voltage", &tmp))
 		labibb->labibb_ctrl_state |= OVR_IBB_VOLTAGE;
 
-	if (of_find_property(np, "somc,qpnp-lab-limit-maximum-current", &tmp))
+	if (of_find_property(np, "qcom,qpnp-lab-limit-maximum-current", &tmp))
 		labibb->labibb_ctrl_state |= OVR_LAB_CURRENT_MAX;
 
-	if (of_find_property(np, "somc,qpnp-ibb-limit-maximum-current", &tmp))
+	if (of_find_property(np, "qcom,qpnp-ibb-limit-maximum-current", &tmp))
 		labibb->labibb_ctrl_state |= OVR_IBB_CURRENT_MAX;
 
 	if (of_find_property(np, "somc,qpnp-lab-max-precharge-time", &tmp))
@@ -1395,7 +1395,7 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	labibb->lab_current_max = LAB_CURRENT_MAX;
 	if (((labibb->labibb_ctrl_state) & OVR_LAB_CURRENT_MAX)) {
 		rc = of_property_read_u32(np,
-			"somc,qpnp-lab-limit-maximum-current", &tmp);
+			"qcom,qpnp-lab-limit-maximum-current", &tmp);
 		if (!rc)
 			labibb->lab_current_max = tmp;
 	}
@@ -1403,7 +1403,7 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	labibb->ibb_current_max = IBB_CURRENT_MAX;
 	if (((labibb->labibb_ctrl_state) & OVR_IBB_CURRENT_MAX)) {
 		rc = of_property_read_u32(np,
-			"somc,qpnp-ibb-limit-maximum-current", &tmp);
+			"qcom,qpnp-ibb-limit-maximum-current", &tmp);
 		if (!rc)
 			labibb->ibb_current_max = tmp;
 	}
