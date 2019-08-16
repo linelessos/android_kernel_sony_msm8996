@@ -99,8 +99,8 @@
 		qcom,mdss-dsi-panel-peak-brightness = <7000000>;
 		qcom,mdss-dsi-panel-blackness-level = <4646>;
 
-		somc,qpnp-lab-limit-maximum-current = <200>;
-		somc,qpnp-ibb-limit-maximum-current = <800>;
+		qcom,qpnp-lab-limit-maximum-current = <200>;
+		qcom,qpnp-ibb-limit-maximum-current = <800>;
 		somc,qpnp-lab-max-precharge-time = <300>;
 		somc,qpnp-lab-soft-start = <800>;
 		somc,qpnp-lab-pull-down-enable;
@@ -459,8 +459,8 @@
 		qcom,mdss-dsi-panel-peak-brightness = <7000000>;
 		qcom,mdss-dsi-panel-blackness-level = <4646>;
 
-		somc,qpnp-lab-limit-maximum-current = <200>;
-		somc,qpnp-ibb-limit-maximum-current = <800>;
+		qcom,qpnp-lab-limit-maximum-current = <200>;
+		qcom,qpnp-ibb-limit-maximum-current = <800>;
 		somc,qpnp-lab-max-precharge-time = <300>;
 		somc,qpnp-lab-soft-start = <800>;
 		somc,qpnp-lab-pull-down-enable;
@@ -828,8 +828,8 @@
 		qcom,mdss-dsi-panel-peak-brightness = <7000000>;
 		qcom,mdss-dsi-panel-blackness-level = <4646>;
 
-		somc,qpnp-lab-limit-maximum-current = <200>;
-		somc,qpnp-ibb-limit-maximum-current = <800>;
+		qcom,qpnp-lab-limit-maximum-current = <200>;
+		qcom,qpnp-ibb-limit-maximum-current = <800>;
 		somc,qpnp-lab-max-precharge-time = <300>;
 		somc,qpnp-lab-soft-start = <800>;
 		somc,qpnp-lab-pull-down-enable;
