@@ -47,8 +47,6 @@
 				29 01 00 00 00 00 0E EC 64 DC EC 3B 52 00 0B 0B 13 15 68 0B 95
 				29 01 00 00 00 00 02 B0 03
 				39 01 00 00 50 00 01 10];
-		qcom,mdss-pan-physical-width-dimension = <64>;
-		qcom,mdss-pan-physical-height-dimension = <114>;
 		somc,pw-wait-after-on-touch-reset-first = <90>;
 		somc,pw-wait-after-on-touch-int-n = <10>;
 		qcom,dynamic-mode-switch-enabled;
@@ -99,10 +97,8 @@
 		somc,pw-wait-after-on-touch-avdd = <0>;
 		somc,pw-wait-after-on-touch-vddio = <0>;
 		somc,pw-wait-after-on-touch-reset = <0>;
-		somc,pw-wait-after-on-touch-int-n = <1>;
 		somc,pw-wait-after-off-touch-avdd = <0>;
 		somc,pw-wait-after-off-touch-vddio = <0>;
-		somc,pw-wait-after-off-touch-reset = <5>;
 		somc,pw-wait-after-off-touch-int-n = <0>;
 		somc,pw-down-period = <300>;
 		somc,lab-output-voltage = <5600000>;
@@ -490,9 +486,7 @@
 		somc,pw-wait-after-off-vsn = <10>;
 		somc,pw-wait-after-on-touch-vddio = <0>;
 		somc,pw-wait-after-on-touch-reset = <0>;
-		somc,pw-wait-after-on-touch-int-n = <10>;
 		somc,pw-wait-after-off-touch-vddio = <0>;
-		somc,pw-wait-after-off-touch-reset = <6>;
 		somc,pw-wait-after-off-touch-int-n = <0>;
 		somc,pw-down-period = <300>;
 		somc,lab-output-voltage = <5600000>;
