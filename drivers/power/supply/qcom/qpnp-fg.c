@@ -2261,6 +2261,9 @@ static int get_prop_capacity(struct fg_chip *chip)
 {
 	int msoc, rc;
 	bool vbatt_low_sts;
+#ifdef CONFIG_QPNP_FG_EXTENSION
+	int capacity;
+#endif
 
 	if (chip->use_last_soc && chip->last_soc) {
 		if (chip->last_soc == FULL_SOC_RAW)
@@ -2269,10 +2272,6 @@ static int get_prop_capacity(struct fg_chip *chip)
 				(FULL_CAPACITY - 2),
 				FULL_SOC_RAW - 2) + 1;
 	}
-	int msoc;
-#ifdef CONFIG_QPNP_FG_EXTENSION
-	int capacity;
-#endif
 
 	if (chip->battery_missing)
 		return MISSING_CAPACITY;
@@ -2287,6 +2286,9 @@ static int get_prop_capacity(struct fg_chip *chip)
 		return EMPTY_CAPACITY;
 	}
 	msoc = get_monotonic_soc_raw(chip);
+#ifdef CONFIG_QPNP_FG_EXTENSION
+	capacity = somc_fg_ceil_capacity(&chip->somc_params, msoc);
+#endif
 	if (msoc == 0) {
 		if (fg_reset_on_lockup && chip->use_vbat_low_empty_soc) {
 			rc = fg_get_vbatt_status(chip, &vbatt_low_sts);
@@ -2307,13 +2309,8 @@ static int get_prop_capacity(struct fg_chip *chip)
 		}
 	} else if (msoc == FULL_SOC_RAW) {
 
-#ifdef CONFIG_QPNP_FG_EXTENSION
-	capacity = somc_fg_ceil_capacity(&chip->somc_params, msoc);
-#endif
 		return FULL_CAPACITY;
 	}
-
-
 #ifdef CONFIG_QPNP_FG_EXTENSION
 	return capacity;
 #else
@@ -2670,6 +2667,108 @@ static int update_sram_data(struct fg_chip *chip, int *resched_ms)
 		if (fg_debug_mask & FG_MEM_DEBUG_READS)
 			pr_info("%d %lld %d\n", i, temp, fg_data[i].value);
 	}
+
+#ifdef CONFIG_QPNP_FG_EXTENSION
+	rc = fg_mem_read(chip, reg, BATTERY_SOC_REG, 3, BATTERY_SOC_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read battery soc\n");
+		goto fail;
+	}
+	read_soc = reg[0] | (reg[1] << 8) | (reg[2] << 16);
+	chip->somc_params.data.battery_soc =
+			(read_soc * DECIMAL_CEIL) / (FULL_PERCENT_3B / 100);
+
+	rc = fg_mem_read(chip, reg, CC_CHARGE_REG, 4, CC_CHARGE_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read CC_SoC\n");
+		goto fail;
+	}
+	read_soc = reg[0] | (reg[1] << 8) | (reg[2] << 16) | (reg[3] << 24);
+	chip->somc_params.data.cc_soc =
+			(read_soc * DECIMAL_CEIL) / (FULL_PERCENT_28BIT / 100);
+
+	rc = fg_mem_read(chip, reg, SW_CC_SOC_REG, 4, SW_CC_SOC_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read SW_CC_SoC\n");
+		goto fail;
+	}
+	read_sw_soc = reg[0] | (reg[1] << 8) | (reg[2] << 16) | (reg[3] << 24);
+	magnitude = read_sw_soc & SW_CC_SOC_MAGNITUDE_MASK;
+	if (read_sw_soc & SW_CC_SOC_NEGATIVE_BIT)
+		val = -1 * (~magnitude + 1);
+	else
+		val = magnitude;
+	chip->somc_params.data.sw_cc_soc =
+			(val * DECIMAL_CEIL) / (FULL_PERCENT_28BIT / 100);
+
+	rc = fg_mem_read(chip, reg, SOC_SYSTEM_REG, 2, SOC_SYSTEM_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read SoC_System\n");
+		goto fail;
+	}
+	read_soc = reg[0] | (reg[1] << 8);
+	chip->somc_params.data.soc_system =
+			(read_soc * DECIMAL_CEIL) / (FULL_PERCENT_2B / 100);
+
+	rc = fg_mem_read(chip, reg, SOC_MONOTONIC_REG, 2,
+			SOC_MONOTONIC_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read SoC_Monotonic\n");
+		goto fail;
+	}
+	read_soc = reg[0] | (reg[1] << 8);
+	chip->somc_params.data.soc_monotonic =
+			(read_soc * DECIMAL_CEIL) / (FULL_PERCENT_2B / 100);
+
+	rc = fg_mem_read(chip, reg, INTEGRITY_REG, 1, 0, 1);
+	if (rc) {
+		pr_err("Failed to read profile integrity\n");
+		goto fail;
+	}
+	chip->somc_params.data.integrity_bit = (reg[0] & INTEGRITY_BIT);
+
+	rc = fg_read(chip, reg, chip->soc_base + SOC_RESTART, 1);
+	if (rc) {
+		pr_err("Failed to read SOC restart\n");
+		goto fail;
+	}
+	chip->somc_params.data.soc_restart = reg[0];
+
+	rc = fg_mem_read(chip, reg, VBAT_PREDICT_REG, 2,
+			VBAT_PREDICT_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read VBAT predict\n");
+		goto fail;
+	}
+	chip->somc_params.data.vbat_predict = reg[0] | (reg[1] << 8);
+
+	rc = fg_mem_read(chip, reg, RSLOW_REG, 2, RSLOW_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read rslow\n");
+		goto fail;
+	}
+	chip->somc_params.data.rslow = half_float(reg);
+
+	rc = fg_mem_read(chip, reg, SOC_CUTOFF_REG, 3, SOC_CUTOFF_OFFSET, 1);
+	if (rc) {
+		pr_err("Failed to read soc cutoff\n");
+		goto fail;
+	}
+	read_soc = reg[0] | (reg[1] << 8) | (reg[2] << 16);
+	chip->somc_params.data.soc_cutoff =
+			(read_soc * DECIMAL_CEIL) / (FULL_PERCENT_3B / 100);
+
+	rc = fg_mem_read(chip, reg, SOC_FULL_REG, 3, SOC_FULL_OFFSET, 0);
+	if (rc) {
+		pr_err("Failed to read soc full\n");
+		goto fail;
+	}
+	read_soc = reg[0] | (reg[1] << 8) | (reg[2] << 16);
+	chip->somc_params.data.soc_full =
+			(read_soc * DECIMAL_CEIL) / (FULL_PERCENT_3B / 100);
+fail:
+#endif
+
 	fg_mem_release(chip);
 
 	/* Backup the registers whenever no error happens during update */
@@ -4537,6 +4636,9 @@ static int fg_restore_soc(struct fg_chip *chip)
 
 #define NOM_CAP_REG			0x4F4
 #define CAPACITY_DELTA_DECIPCT		500
+#ifdef CONFIG_QPNP_FG_EXTENSION
+#define LEARNED_CC_RANGE                13
+#endif
 static int load_battery_aging_data(struct fg_chip *chip)
 {
 	int rc = 0;
@@ -4553,8 +4655,14 @@ static int load_battery_aging_data(struct fg_chip *chip)
 	chip->nom_cap_uah = bcap_uah_2b(buffer);
 	chip->actual_cap_uah = chip->nom_cap_uah;
 
+#ifdef CONFIG_QPNP_FG_EXTENSION
+	if (chip->learning_data.learned_cc_uah <= 0 ||
+		chip->learning_data.learned_cc_uah > (chip->nom_cap_uah *
+			LEARNED_CC_RANGE / 10)) {
+#else
 	if (chip->learning_data.learned_cc_uah == 0) {
-		chip->learning_data.learned_cc_uah = chip->nom_cap_uah;
+#endif
+	chip->learning_data.learned_cc_uah = chip->nom_cap_uah;
 		fg_cap_learning_save_data(chip);
 	} else if (chip->learning_data.feedback_on) {
 		delta_cc_uah = abs(chip->learning_data.learned_cc_uah -
@@ -5799,9 +5907,6 @@ done:
 #define RSLOW_COMP_REG			0x528
 #define RSLOW_COMP_C1_OFFSET		0
 #define RSLOW_COMP_C2_OFFSET		2
-#ifdef CONFIG_QPNP_FG_EXTENSION
-#define LEARNED_CC_RANGE		13
-#endif
 static int populate_system_data(struct fg_chip *chip)
 {
 	u8 buffer[24];
@@ -5840,7 +5945,16 @@ static int populate_system_data(struct fg_chip *chip)
 		pr_err("Failed to load battery aging data, rc:%d\n", rc);
 		goto done;
 	}
-	
+#ifdef CONFIG_QPNP_FG_EXTENSION
+	if (chip->somc_params.data.set_cc_soc_coeff) {
+		int16_t cc_mah = div64_s64(chip->nom_cap_uah, 1000);
+		rc = somc_fg_calc_and_store_cc_soc_coeff(chip, cc_mah);
+		if (rc)
+			pr_err("Failed to write cc_soc_coeff");
+		else
+			chip->somc_params.data.set_cc_soc_coeff = false;
+	}
+#endif	
 	rc = fg_mem_read(chip, buffer, CUTOFF_VOLTAGE_REG, 2, 0, 0);
 	if (rc) {
 		pr_err("Failed to read cutoff voltage: %d\n", rc);
@@ -6969,7 +7083,6 @@ static void charge_full_work(struct work_struct *work)
 	int rc;
 	u8 buffer[3];
 	int bsoc;
-	int resume_soc_raw = settings[FG_MEM_RESUME_SOC].value;
 	bool disable = false;
 	u8 reg;
 #ifndef CONFIG_QPNP_FG_EXTENSION
