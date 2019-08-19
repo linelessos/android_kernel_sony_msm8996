@@ -4120,7 +4120,6 @@
 		compatible = "qcom,msm-ssc-sensors";
 		qcom,firmware-name = "slpi";
 		status = "ok";
-		qcom,firmware-name = "slpi";
 	};
 
 	qcom,msm-pacman {
