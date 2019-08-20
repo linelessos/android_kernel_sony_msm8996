@@ -3960,6 +3960,12 @@ static void smbchg_external_power_changed(struct power_supply *psy)
 
 	/* adjust vfloat */
 	smbchg_vfloat_adjust_check(chip);
+#ifdef CONFIG_USB_MSM_OTG
+	rc = power_supply_get_property(chip->usb_psy,
+				POWER_SUPPLY_PROP_CURRENT_MAX, &prop);
+	if (rc == 0)
+		chip->usb_current_max = prop.intval;
+#endif
 #ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
 	rc = power_supply_get_property(chip->usb_psy,
 				POWER_SUPPLY_PROP_TYPE, &prop);
