@@ -33,22 +33,19 @@
 			compatible = "android,firmware";
 			fstab {
 				compatible = "android,fstab";
-				vendor {
-					status = "disabled";
-				};
 				system {
 					compatible = "android,system";
 					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/system";
 					type = "ext4";
-					mnt_flags = "ro,barrier=1";
-					fsmgr_flags = "wait,verify";
+					mnt_flags = "ro,barrier=1,discard";
+					fsmgr_flags = "wait";
 					status = "ok";
 				};
-				odm {
-					compatible = "android,odm";
+				vendor {
+					compatible = "android,vendor";
 					dev = "/dev/block/platform/soc/7464900.sdhci/by-name/oem";
 					type = "ext4";
-					mnt_flags = "ro,barrier=1";
+					mnt_flags = "ro,barrier=1,discard";
 					fsmgr_flags = "wait";
 					status = "ok";
 				};
@@ -61,10 +58,10 @@
 	android {
 		fstab {
 			vendor {
-				status = "disabled";
+				status = "ok";
 			};
 			system {
-				fsmgr_flags = "wait,verify";
+				fsmgr_flags = "wait";
 			};
 		};
 	};
