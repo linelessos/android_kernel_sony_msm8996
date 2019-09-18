@@ -53,8 +53,11 @@
 #if defined(CONFIG_ARCH_SONY_LOIRE) || defined(CONFIG_ARCH_SONY_TONE)
  #define TARGET_SOMC_S1BOOT
 #endif
-#if defined(CONFIG_ARCH_SONY_YOSHINO)
+#if defined(CONFIG_ARCH_SONY_YOSHINO) || defined(CONFIG_ARCH_SONY_NILE)
  #define TARGET_SOMC_XBOOT
+#if defined(CONFIG_ARCH_SONY_NILE)
+ #define TARGET_SOMC_XBOOT_FEATURE_AB
+#endif
 #endif
 
 static int restart_mode;
@@ -330,7 +333,7 @@ static void msm_restart_prepare(const char *cmd)
 				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
-#ifdef TARGET_SOMC_XBOOT
+#if defined(TARGET_SOMC_XBOOT) && !defined(TARGET_SOMC_XBOOT_FEATURE_AB)
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_OEM_F);
 			__raw_writel(0x6f656d46, restart_reason); //oem-F
@@ -366,28 +369,11 @@ static void msm_restart_prepare(const char *cmd)
 			__raw_writel(0x6f656d53, restart_reason);
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
-			unsigned long reset_reason;
 			int ret;
 			ret = kstrtoul(cmd + 4, 16, &code);
-			if (!ret) {
-				/* Bit-2 to bit-7 of SOFT_RB_SPARE for hard
-				 * reset reason:
-				 * Value 0 to 31 for common defined features
-				 * Value 32 to 63 for oem specific features
-				 */
-				reset_reason = code +
-						PON_RESTART_REASON_OEM_MIN;
-				if (reset_reason > PON_RESTART_REASON_OEM_MAX ||
-				   reset_reason < PON_RESTART_REASON_OEM_MIN) {
-					pr_err("Invalid oem reset reason: %lx\n",
-						reset_reason);
-				} else {
-					qpnp_pon_set_restart_reason(
-						reset_reason);
-				}
+			if (!ret)
 				__raw_writel(0x6f656d00 | (code & 0xff),
 					     restart_reason);
-			}
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
 		} else {
