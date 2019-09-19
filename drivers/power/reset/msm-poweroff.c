@@ -10,8 +10,12 @@
  * GNU General Public License for more details.
  *
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
-#include <linux/cpu.h>
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/init.h>
@@ -50,15 +54,8 @@
 #define SCM_DLOAD_MINIDUMP		0X20
 #define SCM_DLOAD_BOTHDUMPS	(SCM_DLOAD_MINIDUMP | SCM_DLOAD_FULLDUMP)
 
-#if defined(CONFIG_ARCH_SONY_LOIRE) || defined(CONFIG_ARCH_SONY_TONE)
- #define TARGET_SOMC_S1BOOT
-#endif
-#if defined(CONFIG_ARCH_SONY_YOSHINO) || defined(CONFIG_ARCH_SONY_NILE)
- #define TARGET_SOMC_XBOOT
-#if defined(CONFIG_ARCH_SONY_NILE)
- #define TARGET_SOMC_XBOOT_FEATURE_AB
-#endif
-#endif
+#define SUPPORT_DISABLE_RAMDUMP
+
 
 static int restart_mode;
 static void *restart_reason;
@@ -74,19 +71,6 @@ static void scm_disable_sdi(void);
  * So the SDI cannot be re-enabled when it already by-passed.
 */
 
-static int in_panic;
-static int panic_prep_restart(struct notifier_block *this,
-			      unsigned long event, void *ptr)
-{
-	in_panic = 1;
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block panic_blk = {
-	.notifier_call	= panic_prep_restart,
-};
-
-
 #ifdef CONFIG_QCOM_DLOAD_MODE
 #define EDL_MODE_PROP "qcom,msm-imem-emergency_download_mode"
 #define DL_MODE_PROP "qcom,msm-imem-download_mode"
@@ -94,8 +78,9 @@ static struct notifier_block panic_blk = {
 #define KASLR_OFFSET_PROP "qcom,msm-imem-kaslr_offset"
 #endif
 
+static int in_panic;
 static int dload_type = SCM_DLOAD_FULLDUMP;
-static int download_mode;
+static int download_mode = 1;
 static struct kobject dload_kobj;
 static void *dload_mode_addr, *dload_type_addr;
 static bool dload_mode_enabled;
@@ -122,6 +107,27 @@ struct reset_attribute {
 
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
+
+#ifdef SUPPORT_DISABLE_RAMDUMP
+static int disable_ramdump;
+static int ramdump_disable_set(const char *val, struct kernel_param *kp);
+module_param_call(disable_ramdump, ramdump_disable_set, param_get_int,
+			&disable_ramdump, 0644);
+#endif
+
+static int panic_prep_restart(struct notifier_block *this,
+			      unsigned long event, void *ptr)
+{
+#ifdef SUPPORT_DISABLE_RAMDUMP
+	if (!disable_ramdump)
+#endif
+	in_panic = 1;
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block panic_blk = {
+	.notifier_call	= panic_prep_restart,
+};
 
 int scm_set_dload_mode(int arg1, int arg2)
 {
@@ -164,6 +170,43 @@ static void set_dload_mode(int on)
 	dload_mode_enabled = on;
 }
 
+static bool get_dload_mode(void)
+{
+	return dload_mode_enabled;
+}
+
+#ifdef SUPPORT_DISABLE_RAMDUMP
+static int ramdump_disable_set(const char *val, struct kernel_param *kp)
+{
+	int ret;
+	int old_val = disable_ramdump;
+
+	if (disable_ramdump) {
+		pr_err("do not handle this action since ramdump is disabled\n");
+		return 0;
+	}
+
+	ret = param_set_int(val, kp);
+
+	if (ret)
+		return ret;
+
+	/* If download_mode is not zero or one, ignore. */
+	if (disable_ramdump >> 1) {
+		disable_ramdump = old_val;
+		return -EINVAL;
+	}
+	if (disable_ramdump) {
+		set_dload_mode(0);
+		scm_disable_sdi();
+		__raw_writel(0x776655AA, restart_reason);
+		pr_err("disable ramdump\n");
+	}
+	return 0;
+}
+#endif
+
+#if 0
 static void enable_emergency_dload_mode(void)
 {
 	int ret;
@@ -188,6 +231,7 @@ static void enable_emergency_dload_mode(void)
 	if (ret)
 		pr_err("Failed to set secure EDLOAD mode: %d\n", ret);
 }
+#endif
 
 static int dload_set(const char *val, struct kernel_param *kp)
 {
@@ -211,9 +255,6 @@ static int dload_set(const char *val, struct kernel_param *kp)
 #else
 static void set_dload_mode(int on)
 {
-	if (tcsr_boot_misc_detect)
-		scm_io_write(tcsr_boot_misc_detect, 0);
-
 	return;
 }
 
@@ -291,8 +332,6 @@ static void msm_restart_prepare(const char *cmd)
 
 	set_dload_mode(download_mode &&
 			(in_panic || restart_mode == RESTART_DLOAD));
-#else
-	set_dload_mode(0);
 #endif
 
 	if (qpnp_pon_check_hard_reset_stored()) {
@@ -306,49 +345,24 @@ static void msm_restart_prepare(const char *cmd)
 				(cmd != NULL && cmd[0] != '\0'));
 	}
 
-#if defined(TARGET_SOMC_XBOOT)
-	/* Force warm reset and allow device to
-	 * preserve memory on restart for kernel
-	 * panic or for bootloader and recovery
-	 * commands */
-	if (cmd != NULL) {
-		if ((!strncmp(cmd, "bootloader", 10)) ||
-		    (!strncmp(cmd, "recovery", 8)) || in_panic)
-			need_warm_reset = true;
-		else
-			need_warm_reset = false;
-	}
-#elif defined(TARGET_SOMC_S1BOOT)
-	need_warm_reset = true;
-#endif
+	if (in_panic) {
+		u32 prev_reason;
 
-	if (need_warm_reset)
-		qpnp_pon_system_pwr_off(PON_POWER_OFF_WARM_RESET);
-	else
-		qpnp_pon_system_pwr_off(PON_POWER_OFF_HARD_RESET);
-
-	if (cmd != NULL) {
+		prev_reason = __raw_readl(restart_reason);
+		if (prev_reason != 0xABADF00D)
+			__raw_writel(0xC0DEDEAD, restart_reason);
+	} else if (cmd != NULL) {
 		if (!strncmp(cmd, "bootloader", 10)) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_BOOTLOADER);
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
-#if defined(TARGET_SOMC_XBOOT) && !defined(TARGET_SOMC_XBOOT_FEATURE_AB)
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_OEM_F);
-			__raw_writel(0x6f656d46, restart_reason); //oem-F
-#elif defined(TARGET_SOMC_S1BOOT)
-			qpnp_pon_set_restart_reason(
-				PON_RESTART_REASON_RECOVERY);
-			__raw_writel(0x6f656d46, restart_reason); //oem-46
-#else
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RECOVERY);
 #if defined(CONFIG_ARCH_SONY_LOIRE) || defined(CONFIG_ARCH_SONY_TONE)
 			__raw_writel(0x6f656d46, restart_reason); //oem-46
 #else
 			__raw_writel(0x77665502, restart_reason);
-#endif
 		} else if (!strcmp(cmd, "rtc")) {
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_RTC);
@@ -365,35 +379,40 @@ static void msm_restart_prepare(const char *cmd)
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_KEYS_CLEAR);
 			__raw_writel(0x7766550a, restart_reason);
-		} else if (!strncmp(cmd, "s1bootloader", 12)) {
-			__raw_writel(0x6f656d53, restart_reason);
 		} else if (!strncmp(cmd, "oem-", 4)) {
 			unsigned long code;
+			unsigned long reset_reason;
 			int ret;
 			ret = kstrtoul(cmd + 4, 16, &code);
-			if (!ret)
+			if (!ret) {
+				/* Bit-2 to bit-7 of SOFT_RB_SPARE for hard
+				 * reset reason:
+				 * Value 0 to 31 for common defined features
+				 * Value 32 to 63 for oem specific features
+				 */
+				reset_reason = code +
+						PON_RESTART_REASON_OEM_MIN;
+				if (reset_reason > PON_RESTART_REASON_OEM_MAX ||
+				   reset_reason < PON_RESTART_REASON_OEM_MIN) {
+					pr_err("Invalid oem reset reason: %lx\n",
+						reset_reason);
+				} else {
+					qpnp_pon_set_restart_reason(
+						reset_reason);
+				}
 				__raw_writel(0x6f656d00 | (code & 0xff),
 					     restart_reason);
+
+			}
+#if 0
 		} else if (!strncmp(cmd, "edl", 3)) {
 			enable_emergency_dload_mode();
-		} else {
-			pr_notice("%s : cmd is %s, set to reboot mode\n", __func__, cmd);
-#if defined(TARGET_SOMC_XBOOT) || defined(TARGET_SOMC_S1BOOT)
-			qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
-#else
-			qpnp_pon_set_restart_reason(PON_RESTART_REASON_REBOOT);
 #endif
+		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}
 	} else {
-		pr_notice("%s : cmd is NULL, set to reboot mode\n", __func__);
-#if defined(TARGET_SOMC_XBOOT) || defined(TARGET_SOMC_S1BOOT)
-		qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
-		__raw_writel(0x77665501, restart_reason);
-#else
-		qpnp_pon_set_restart_reason(PON_RESTART_REASON_REBOOT);
 		__raw_writel(0x776655AA, restart_reason);
-#endif
 	}
 
 	flush_cache_all();
@@ -459,9 +478,7 @@ static void do_msm_poweroff(void)
 	set_dload_mode(0);
 	scm_disable_sdi();
 	qpnp_pon_system_pwr_off(PON_POWER_OFF_SHUTDOWN);
-#ifdef TARGET_SOMC_XBOOT
-	qpnp_pon_set_restart_reason(PON_RESTART_REASON_NONE);
-#endif
+	qpnp_pon_set_restart_reason(PON_RESTART_REASON_UNKNOWN);
 
 	halt_spmi_pmic_arbiter();
 	deassert_ps_hold();
@@ -600,19 +617,6 @@ static struct attribute_group reset_attr_group = {
 };
 #endif
 
-static int msm_reboot_call(struct notifier_block *this,
-			   unsigned long code, void *_cmd)
-{
-	if (code == SYS_DOWN)
-		disable_nonboot_cpus();
-
-	return NOTIFY_DONE;
-}
-
-static struct notifier_block msm_reboot_notifier = {
-	.notifier_call = msm_reboot_call,
-};
-
 static int msm_restart_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -620,12 +624,11 @@ static int msm_restart_probe(struct platform_device *pdev)
 	struct device_node *np;
 	int ret = 0;
 
-	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
-
 #ifdef CONFIG_QCOM_DLOAD_MODE
 	if (scm_is_call_available(SCM_SVC_BOOT, SCM_DLOAD_CMD) > 0)
 		scm_dload_supported = true;
 
+	atomic_notifier_chain_register(&panic_notifier_list, &panic_blk);
 	np = of_find_compatible_node(NULL, NULL, DL_MODE_PROP);
 	if (!np) {
 		pr_err("unable to find DT imem DLOAD mode node\n");
@@ -694,9 +697,6 @@ static int msm_restart_probe(struct platform_device *pdev)
 	}
 skip_sysfs_create:
 #endif
-
-	register_reboot_notifier(&msm_reboot_notifier);
-
 	np = of_find_compatible_node(NULL, NULL,
 				"qcom,msm-imem-restart_reason");
 	if (!np) {
@@ -733,15 +733,7 @@ skip_sysfs_create:
 	set_dload_mode(download_mode);
 	if (!download_mode)
 		scm_disable_sdi();
-#else
-	scm_disable_sdi();
 #endif
-
-#ifdef TARGET_SOMC_XBOOT
-	__raw_writel(0xC0DEDEAD, restart_reason);
-	qpnp_pon_set_restart_reason(PON_RESTART_REASON_KERNEL_PANIC);
-#endif
-
 	return 0;
 
 err_restart_reason:
