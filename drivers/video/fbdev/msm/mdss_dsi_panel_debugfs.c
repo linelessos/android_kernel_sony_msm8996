@@ -1,17 +1,13 @@
 /*
- * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ * drivers/video/fbdev/msm/mdss_dsi_panel_debugfs.c
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
  */
 /*
- * Copyright (C) 2015 Sony Mobile Communications Inc.
+ * Copyright (C) 2016 Sony Mobile Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -50,8 +46,6 @@ static struct first_frame_flushed_det fff_det;
 #define DSI_BUF_SIZE	1024
 #define TMP_BUF_SZ 128
 #define MAX_WRITE_DATA 100
-#define PCC_MIN_VAL 0x0000
-#define PCC_MAX_VAL 0x8000
 
 #define DEFAULT_BS_THRESHOLD 500
 
@@ -207,7 +201,7 @@ exit:
 	return ret;
 }
 
-u32 panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl,
+static u32 panel_cmd_read(struct mdss_dsi_ctrl_pdata *ctrl,
 		struct dsi_cmd_desc *cmds, void (*fxn)(int),
 		char *rbuf, int len)
 {
@@ -715,14 +709,24 @@ static ssize_t mdss_dsi_panel_pcc_show(struct device *dev,
 	pcc_data = &ctrl_pdata->spec_pdata->pcc_data;
 
 	r = g = b = 0;
-	if (!pcc_data->color_tbl)
+	if (!pcc_data->color_tbl) {
+		pr_err("%s: Panel has no color table\n", __func__);
 		goto exit;
-	if (pcc_data->u_data == 0 && pcc_data->v_data == 0)
+	}
+	if (pcc_data->u_data == 0 && pcc_data->v_data == 0) {
+		pr_err("%s: u,v are 0.\n", __func__);
 		goto exit;
-	if (pcc_data->tbl_idx >= pcc_data->tbl_size)
+	}
+	if (pcc_data->tbl_idx >= pcc_data->tbl_size) {
+		pr_err("%s: Invalid color area(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
 		goto exit;
-	if (pcc_data->color_tbl[pcc_data->tbl_idx].color_type == UNUSED)
+	}
+	if (pcc_data->color_tbl[pcc_data->tbl_idx].color_type == UNUSED) {
+		pr_err("%s: Unsupported color type(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
 		goto exit;
+	}
 	r = pcc_data->color_tbl[pcc_data->tbl_idx].r_data;
 	g = pcc_data->color_tbl[pcc_data->tbl_idx].g_data;
 	b = pcc_data->color_tbl[pcc_data->tbl_idx].b_data;
@@ -730,93 +734,159 @@ exit:
 	return scnprintf(buf, PAGE_SIZE, "0x%x 0x%x 0x%x ", r, g, b);
 }
 
-static ssize_t mdss_dsi_panel_pcc_reg_show(struct device *dev,
+static ssize_t mdss_dsi_panel_srgb_pcc_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
-	struct msm_fb_data_type *mfd = mdata->ctl_off->mfd;
-	struct mdp_pcc_cfg_data pcc_config;
-	u32 r, g, b, copyback;
-	int ret;
-	u32 copy_from_kernel = 1;
-	struct mdp_pcc_data_v1_7 pcc_payload;
-	struct mdp_pp_feature_version pcc_version = {
-		.pp_feature = PCC,
-	};
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
+	struct mdss_pcc_data *pcc_data;
+	u32 r, g, b;
+
+	ctrl_pdata = mdss_dsi_get_master_ctrl(&ctrl_pdata->panel_data);
+	pcc_data = &ctrl_pdata->spec_pdata->srgb_pcc_data;
 
 	r = g = b = 0;
-	memset(&pcc_config, 0, sizeof(struct mdp_pcc_cfg_data));
-	memset(&pcc_payload, 0, sizeof(struct mdp_pcc_data_v1_7));
-	ret = mdss_mdp_pp_get_version(&pcc_version);
-	if (ret) {
-		pr_err("get pp version failed ret %d\n", ret);
-		goto err;
+	if (!pcc_data->color_tbl) {
+		pr_err("%s: Panel has no color table\n", __func__);
+		goto exit;
 	}
-	pcc_config.cfg_payload = &pcc_payload;
-	pcc_config.version = pcc_version.version_info;
-	pcc_config.block = MDP_LOGICAL_BLOCK_DISP_0;
-	pcc_config.ops = MDP_PP_OPS_ENABLE | MDP_PP_OPS_READ;
-	ret = mdss_mdp_pcc_config(mfd, &pcc_config, &copyback, copy_from_kernel);
-
-	if (ret != 0)
-		goto err;
-
-	mdss_mdp_pcc_copy_from_v1_7(&pcc_payload, &pcc_config);
-	r = pcc_config.r.r;
-	g = pcc_config.g.g;
-	b = pcc_config.b.b;
-
-	return scnprintf(buf, PAGE_SIZE, "0x%x 0x%x 0x%x\n", r, g, b);
-err:
-	return scnprintf(buf, PAGE_SIZE, "failed read pcc data.\n");
+	if (pcc_data->u_data == 0 && pcc_data->v_data == 0) {
+		pr_err("%s: u,v are 0.\n", __func__);
+		goto exit;
+	}
+	if (pcc_data->tbl_idx >= pcc_data->tbl_size) {
+		pr_err("%s: Invalid color area(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
+		goto exit;
+	}
+	if (pcc_data->color_tbl[pcc_data->tbl_idx].color_type == UNUSED) {
+		pr_err("%s: Unsupported color type(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
+		goto exit;
+	}
+	r = pcc_data->color_tbl[pcc_data->tbl_idx].r_data;
+	g = pcc_data->color_tbl[pcc_data->tbl_idx].g_data;
+	b = pcc_data->color_tbl[pcc_data->tbl_idx].b_data;
+exit:
+	return scnprintf(buf, PAGE_SIZE, "0x%x 0x%x 0x%x ", r, g, b);
 }
 
-static ssize_t mdss_dsi_panel_pcc_reg_store(struct device *dev,
-					struct device_attribute *attr, const char *buf, size_t count)
+static ssize_t mdss_dsi_panel_vivid_pcc_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
 {
-	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
-	struct msm_fb_data_type *mfd = mdata->ctl_off->mfd;
-	struct mdp_pcc_cfg_data pcc_config;
-	u32 r, g, b, copyback;
-	int ret = 0;
-	u32 copy_from_kernel = 1;
-	struct mdp_pcc_data_v1_7 pcc_payload;
-	struct mdp_pp_feature_version pcc_version = {
-		.pp_feature = PCC,
-	};
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
+	struct mdss_pcc_data *pcc_data;
+	u32 r, g, b;
 
-	if (sscanf(buf, "%x %x %x", &r, &g, &b) < 0)
-		goto err;
+	ctrl_pdata = mdss_dsi_get_master_ctrl(&ctrl_pdata->panel_data);
+	pcc_data = &ctrl_pdata->spec_pdata->vivid_pcc_data;
 
-	if (((r < PCC_MIN_VAL) || (r > PCC_MAX_VAL)) ||
-	    ((g < PCC_MIN_VAL) || (g > PCC_MAX_VAL)) ||
-	    ((b < PCC_MIN_VAL) || (b > PCC_MAX_VAL)))
-		goto err;
-
-	memset(&pcc_config, 0, sizeof(struct mdp_pcc_cfg_data));
-	memset(&pcc_payload, 0, sizeof(struct mdp_pcc_data_v1_7));
-	ret = mdss_mdp_pp_get_version(&pcc_version);
-	if (ret) {
-		pr_err("get pp version failed ret %d\n", ret);
-		goto err;
+	r = g = b = 0;
+	if (!pcc_data->color_tbl) {
+		pr_err("%s: Panel has no color table\n", __func__);
+		goto exit;
 	}
-	pcc_config.cfg_payload = &pcc_payload;
-	pcc_config.version = pcc_version.version_info;
-	pcc_config.block = MDP_LOGICAL_BLOCK_DISP_0;
-	pcc_config.ops = MDP_PP_OPS_ENABLE | MDP_PP_OPS_WRITE;
-	pcc_config.r.r = r;
-	pcc_config.g.g = g;
-	pcc_config.b.b = b;
-	mdss_mdp_pcc_copy_to_v1_7(&pcc_config, &pcc_payload);
-	ret = mdss_mdp_pcc_config(mfd, &pcc_config, &copyback, copy_from_kernel);
-	if (ret != 0)
-		goto err;
+	if (pcc_data->u_data == 0 && pcc_data->v_data == 0) {
+		pr_err("%s: u,v are 0.\n", __func__);
+		goto exit;
+	}
+	if (pcc_data->tbl_idx >= pcc_data->tbl_size) {
+		pr_err("%s: Invalid color area(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
+		goto exit;
+	}
+	if (pcc_data->color_tbl[pcc_data->tbl_idx].color_type == UNUSED) {
+		pr_err("%s: Unsupported color type(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
+		goto exit;
+	}
+	r = pcc_data->color_tbl[pcc_data->tbl_idx].r_data;
+	g = pcc_data->color_tbl[pcc_data->tbl_idx].g_data;
+	b = pcc_data->color_tbl[pcc_data->tbl_idx].b_data;
+exit:
+	return scnprintf(buf, PAGE_SIZE, "0x%x 0x%x 0x%x ", r, g, b);
+}
 
-	return count;
-err:
-	pr_err("%s: failed write pcc data. R:0x%x, G:0x%x, B:0x%x\n",
-	       __func__, r, g, b);
-	return -EINVAL;
+static ssize_t mdss_dsi_panel_hdr_pcc_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
+	struct mdss_pcc_data *pcc_data;
+	u32 r, g, b;
+
+	ctrl_pdata = mdss_dsi_get_master_ctrl(&ctrl_pdata->panel_data);
+	pcc_data = &ctrl_pdata->spec_pdata->hdr_pcc_data;
+
+	r = g = b = 0;
+	if (!pcc_data->color_tbl) {
+		pr_err("%s: Panel has no color table\n", __func__);
+		goto exit;
+	}
+	if (pcc_data->u_data == 0 && pcc_data->v_data == 0) {
+		pr_err("%s: u,v are 0.\n", __func__);
+		goto exit;
+	}
+	if (pcc_data->tbl_idx >= pcc_data->tbl_size) {
+		pr_err("%s: Invalid color area(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
+		goto exit;
+	}
+	if (pcc_data->color_tbl[pcc_data->tbl_idx].color_type == UNUSED) {
+		pr_err("%s: Unsupported color type(idx=%d)\n",
+			__func__, pcc_data->tbl_idx);
+		goto exit;
+	}
+	r = pcc_data->color_tbl[pcc_data->tbl_idx].r_data;
+	g = pcc_data->color_tbl[pcc_data->tbl_idx].g_data;
+	b = pcc_data->color_tbl[pcc_data->tbl_idx].b_data;
+exit:
+	return scnprintf(buf, PAGE_SIZE, "0x%x 0x%x 0x%x ", r, g, b);
+}
+
+static ssize_t mdss_dsi_panel_color_mode_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mdss_panel_specific_pdata *spec_pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
+
+	ctrl_pdata = mdss_dsi_get_master_ctrl(&ctrl_pdata->panel_data);
+	spec_pdata = ctrl_pdata->spec_pdata;
+
+	return scnprintf(buf, PAGE_SIZE, "%d", spec_pdata->color_mode);
+}
+
+static ssize_t mdss_dsi_panel_color_mode_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct mdss_panel_specific_pdata *spec_pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
+	int mode, rc = 0;
+
+	ctrl_pdata = mdss_dsi_get_master_ctrl(&ctrl_pdata->panel_data);
+	spec_pdata = ctrl_pdata->spec_pdata;
+
+	if (sscanf(buf, "%d", &mode) < 0) {
+		pr_err("sscanf failed to set mode. keep current mode=%d\n",
+			spec_pdata->color_mode);
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	switch (mode) {
+	case CLR_MODE_SELECT_SRGB:
+	case CLR_MODE_SELECT_DCIP3:
+	case CLR_MODE_SELECT_PANELNATIVE:
+		spec_pdata->color_mode = mode;
+		break;
+	default:
+		pr_err("failed set mode:invalid mode=%d. keep current mode"
+			"=%d\n", mode, spec_pdata->color_mode);
+		rc = -EINVAL;
+		break;
+	}
+
+exit:
+	return !rc ? count : rc;
+
 }
 
 static ssize_t mdss_dsi_panel_frame_counter(struct device *dev,
@@ -878,11 +948,48 @@ static ssize_t mdss_dsi_panel_change_fps_show(struct device *dev,
 	return mdss_dsi_panel_driver_change_fps_show(dev, attr, buf);
 }
 
+static ssize_t mdss_dsi_panel_esd_enable_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct mdss_panel_specific_pdata *spec_pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
+
+	ctrl_pdata = mdss_dsi_get_master_ctrl(&ctrl_pdata->panel_data);
+	spec_pdata = ctrl_pdata->spec_pdata;
+
+	return scnprintf(buf, PAGE_SIZE, "esd_enable = %u\n",
+				spec_pdata->esd_enable_without_xlog);
+}
+
+static ssize_t mdss_dsi_panel_esd_enable_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int rc = 0;
+	struct mdss_panel_specific_pdata *spec_pdata;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
+
+	ctrl_pdata = mdss_dsi_get_master_ctrl(&ctrl_pdata->panel_data);
+	spec_pdata = ctrl_pdata->spec_pdata;
+
+	rc = kstrtouint(buf, 10, &spec_pdata->esd_enable_without_xlog);
+	if (rc < 0) {
+		pr_err("%s: Error, buf = %s\n", __func__, buf);
+		return rc;
+	}
+	pr_notice("%s: esd_enable = %u\n",
+			__func__, spec_pdata->esd_enable_without_xlog);
+	return count;
+}
+
 static struct device_attribute panel_attributes[] = {
 	__ATTR(panel_id, S_IRUSR, mdss_dsi_panel_id_show, NULL),
 	__ATTR(cc, S_IRUGO, mdss_dsi_panel_pcc_show, NULL),
-	__ATTR(pcc_reg, S_IRUGO|S_IWUSR|S_IWGRP,
-	       mdss_dsi_panel_pcc_reg_show, mdss_dsi_panel_pcc_reg_store),
+	__ATTR(srgb_cc, S_IRUGO, mdss_dsi_panel_srgb_pcc_show, NULL),
+	__ATTR(vivid_cc, S_IRUGO, mdss_dsi_panel_vivid_pcc_show, NULL),
+	__ATTR(hdr_cc, S_IRUGO, mdss_dsi_panel_hdr_pcc_show, NULL),
+	__ATTR(c_mode, S_IRUGO|S_IWUSR|S_IWGRP,
+		mdss_dsi_panel_color_mode_show,
+		mdss_dsi_panel_color_mode_store),
 	__ATTR(frame_counter, S_IRUGO, mdss_dsi_panel_frame_counter, NULL),
 	__ATTR(frames_per_ksecs, S_IRUGO,
 		mdss_dsi_panel_frames_per_ksecs, NULL),
@@ -895,6 +1002,9 @@ static struct device_attribute panel_attributes[] = {
 	__ATTR(change_fpks, S_IRUGO|S_IWUSR|S_IWGRP,
 					mdss_dsi_panel_change_fpks_show,
 					mdss_dsi_panel_change_fpks_store),
+	__ATTR(esd_enable_wo_xlog, S_IRUSR|S_IRGRP|S_IWUSR|S_IWGRP,
+		mdss_dsi_panel_esd_enable_show,
+		mdss_dsi_panel_esd_enable_store),
 };
 
 static int register_attributes(struct device *dev)
@@ -1235,7 +1345,6 @@ static const struct file_operations fff_time_fops = {
 	.poll		= fff_time_poll,
 	.release	= single_release,
 };
-
 static void mipi_dsi_panel_create_debugfs(struct msm_fb_data_type *mfd)
 {
 	struct device *dev;

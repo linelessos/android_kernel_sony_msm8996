@@ -10,11 +10,6 @@
  * GNU General Public License for more details.
  *
  */
-/*
- * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
- * and licensed under the license of the file.
- */
 
 #define pr_fmt(fmt)	"%s: " fmt, __func__
 
@@ -1228,15 +1223,6 @@ static int __configure_pipe_params(struct msm_fb_data_type *mfd,
 	if (pipe->async_update && ((is_split_lm(mfd) && !mdata->has_src_split)
 			|| (!mdp5_data->ctl->is_video_mode))) {
 		pr_err("async update allowed only in video mode panel with src_split\n");
-		ret = -EINVAL;
-		goto end;
-	}
-
-	/* scaling is not allowed for solid_fill layers */
-	if ((pipe->flags & MDP_SOLID_FILL) &&
-		((pipe->src.w != pipe->dst.w) ||
-			(pipe->src.h != pipe->dst.h))) {
-		pr_err("solid fill pipe:%d cannot have scaling\n", pipe->num);
 		ret = -EINVAL;
 		goto end;
 	}
