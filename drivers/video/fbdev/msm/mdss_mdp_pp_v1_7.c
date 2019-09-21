@@ -13,7 +13,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -919,9 +919,10 @@ static int pp_gamut_set_config(char __iomem *base_addr,
 			gamut_val = gamut_data->c1_c2_data[i][j + 1];
 			gamut_val = (gamut_val << 32) |
 					gamut_data->c0_data[i][j];
-			writeq_relaxed(gamut_val,
+			writeq_relaxed_no_log(gamut_val,
 					base_addr + GAMUT_TABLE_UPPER_R);
 		}
+
 		writel_relaxed(gamut_data->c0_data[i][j],
 					base_addr + GAMUT_TABLE_UPPER_R);
 		if ((i >= MDP_GAMUT_SCALE_OFF_TABLE_NUM) ||
@@ -1114,73 +1115,6 @@ static int pp_pcc_get_config(char __iomem *base_addr, void *cfg_data,
 
 	return 0;
 }
-
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-int __pp_pcc_get_config(char __iomem *base_addr, void *cfg_data,
-			u32 block_type, u32 disp_num)
-{
-	char __iomem *addr;
-	struct mdp_pcc_cfg_data *pcc_cfg = NULL;
-	struct mdp_pcc_data_v1_7 pcc_data;
-
-	if (!base_addr || !cfg_data) {
-		pr_err("invalid params base_addr %p cfg_data %p\n",
-		       base_addr, cfg_data);
-		return -EINVAL;
-	}
-
-	pcc_cfg = (struct mdp_pcc_cfg_data *) cfg_data;
-	if (pcc_cfg->version != mdp_pcc_v1_7) {
-		pr_err("unsupported version of pcc %d\n",
-		       pcc_cfg->version);
-		return -EINVAL;
-	}
-
-	addr = base_addr + PCC_CONST_COEFF_OFF;
-	pcc_data.r.c = readl_relaxed(addr) & PCC_CONST_COEFF_MASK;
-	pcc_data.g.c = readl_relaxed(addr + 4) & PCC_CONST_COEFF_MASK;
-	pcc_data.b.c = readl_relaxed(addr + 8) & PCC_CONST_COEFF_MASK;
-
-	addr = base_addr + PCC_R_COEFF_OFF;
-	pcc_data.r.r = readl_relaxed(addr) & PCC_COEFF_MASK;
-	pcc_data.g.r = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
-	pcc_data.b.r = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
-
-	addr = base_addr + PCC_G_COEFF_OFF;
-	pcc_data.r.g = readl_relaxed(addr) & PCC_COEFF_MASK;
-	pcc_data.g.g = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
-	pcc_data.b.g = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
-
-	addr = base_addr + PCC_B_COEFF_OFF;
-	pcc_data.r.b = readl_relaxed(addr) & PCC_COEFF_MASK;
-	pcc_data.g.b = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
-	pcc_data.b.b = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
-
-	addr = base_addr + PCC_RG_COEFF_OFF;
-	pcc_data.r.rg = readl_relaxed(addr) & PCC_COEFF_MASK;
-	pcc_data.g.rg = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
-	pcc_data.b.rg = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
-
-	addr = base_addr + PCC_RB_COEFF_OFF;
-	pcc_data.r.rb = readl_relaxed(addr) & PCC_COEFF_MASK;
-	pcc_data.g.rb = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
-	pcc_data.b.rb = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
-
-	addr = base_addr + PCC_GB_COEFF_OFF;
-	pcc_data.r.gb = readl_relaxed(addr) & PCC_COEFF_MASK;
-	pcc_data.g.gb = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
-	pcc_data.b.gb = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
-
-	addr = base_addr + PCC_RGB_COEFF_OFF;
-	pcc_data.r.rgb = readl_relaxed(addr) & PCC_COEFF_MASK;
-	pcc_data.g.rgb = readl_relaxed(addr + 4) & PCC_COEFF_MASK;
-	pcc_data.b.rgb = readl_relaxed(addr + 8) & PCC_COEFF_MASK;
-
-	memcpy(pcc_cfg->cfg_payload, &pcc_data, sizeof(pcc_data));
-
-	return 0;
-}
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 static void pp_pa_set_global_adj_regs(char __iomem *base_addr,
 				struct mdp_pa_data_v1_7 *pa_data, u32 flags,
@@ -1839,11 +1773,11 @@ static int pp_igc_set_config(char __iomem *base_addr,
 	data &= ~IGC_INDEX_UPDATE;
 	/* update the index for c0, c1 , c2 */
 	for (i = 1; i < IGC_LUT_ENTRIES; i++) {
-		writel_relaxed((lut_data->c0_c1_data[i] & IGC_DATA_MASK)
+		writel_relaxed_no_log((lut_data->c0_c1_data[i] & IGC_DATA_MASK)
 			       | data, c0);
-		writel_relaxed(((lut_data->c0_c1_data[i] >> 16)
+		writel_relaxed_no_log(((lut_data->c0_c1_data[i] >> 16)
 				& IGC_DATA_MASK) | data, c1);
-		writel_relaxed((lut_data->c2_data[i] & IGC_DATA_MASK)
+		writel_relaxed_no_log((lut_data->c2_data[i] & IGC_DATA_MASK)
 				| data, c2);
 	}
 bail_out:
@@ -1999,15 +1933,15 @@ static int pp_pgc_set_config(char __iomem *base_addr,
 		val = pgc_data_v17->c0_data[i] & PGC_DATA_MASK;
 		val |= (pgc_data_v17->c0_data[i + 1] & PGC_DATA_MASK) <<
 			PGC_ODD_SHIFT;
-		writel_relaxed(val, c0);
+		writel_relaxed_no_log(val, c0);
 		val = pgc_data_v17->c1_data[i] & PGC_DATA_MASK;
 		val |= (pgc_data_v17->c1_data[i + 1] & PGC_DATA_MASK) <<
 			PGC_ODD_SHIFT;
-		writel_relaxed(val, c1);
+		writel_relaxed_no_log(val, c1);
 		val = pgc_data_v17->c2_data[i] & PGC_DATA_MASK;
 		val |= (pgc_data_v17->c2_data[i + 1] & PGC_DATA_MASK) <<
 			PGC_ODD_SHIFT;
-		writel_relaxed(val, c2);
+		writel_relaxed_no_log(val, c2);
 	}
 	if (block_type == DSPP) {
 		val = PGC_SWAP;

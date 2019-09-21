@@ -11,7 +11,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -31,18 +31,17 @@
 #include "mdss_dsi.h"
 #include "mdss_dba_utils.h"
 #include "mdss_debug.h"
-
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-#include "mdss_dsi_panel_debugfs.h"
 #include "mdss_dsi_panel_driver.h"
+#include "mdss_dsi_panel_debugfs.h"
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
+
 #define DT_CMD_HDR 6
 #define DEFAULT_MDP_TRANSFER_TIME 14000
 
 #define VSYNC_DELAY msecs_to_jiffies(17)
 
 DEFINE_LED_TRIGGER(bl_led_trigger);
-
 
 void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 {
@@ -407,7 +406,6 @@ int mdss_dsi_panel_reset(struct mdss_panel_data *pdata, int enable)
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 	return mdss_dsi_panel_driver_reset_panel(pdata, enable);
 #else
-
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_panel_info *pinfo = NULL;
 	int i, rc = 0;
@@ -864,12 +862,23 @@ static void mdss_dsi_panel_switch_mode(struct mdss_panel_data *pdata,
 		pr_debug("%s: sending switch commands\n", __func__);
 		pcmds = &pt->switch_cmds;
 		flags |= CMD_REQ_DMA_TPG;
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+		mipi->switch_mode_pending = true;
+#else
 		flags |= CMD_REQ_COMMIT;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	} else {
 		pr_warn("%s: Invalid mode switch attempted\n", __func__);
 		return;
 	}
 
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	if ((pdata->panel_info.compression_mode == COMPRESSION_DSC) &&
+			(mipi->switch_mode_pending == true))
+		mdss_dsi_panel_dsc_pps_send(ctrl_pdata, &pdata->panel_info);
+
+	mdss_dsi_panel_cmds_send(ctrl_pdata, pcmds, flags);
+#else
 	if ((pdata->panel_info.compression_mode == COMPRESSION_DSC) &&
 			(pdata->panel_info.send_pps_before_switch))
 		mdss_dsi_panel_dsc_pps_send(ctrl_pdata, &pdata->panel_info);
@@ -879,6 +888,7 @@ static void mdss_dsi_panel_switch_mode(struct mdss_panel_data *pdata,
 	if ((pdata->panel_info.compression_mode == COMPRESSION_DSC) &&
 			(!pdata->panel_info.send_pps_before_switch))
 		mdss_dsi_panel_dsc_pps_send(ctrl_pdata, &pdata->panel_info);
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 }
 
 static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
@@ -1037,11 +1047,7 @@ static int mdss_dsi_post_panel_on(struct mdss_panel_data *pdata)
 
 	cmds = &ctrl->post_panel_on_cmds;
 	if (cmds->cmd_cnt) {
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		mdss_dsi_panel_driver_wait_before_post_on_cmds(ctrl);
-#else
 		msleep(VSYNC_DELAY);	/* wait for a vsync passed */
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 		mdss_dsi_panel_cmds_send(ctrl, cmds, CMD_REQ_COMMIT);
 	}
 
@@ -1111,10 +1117,9 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 
 end:
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	mdss_dsi_panel_driver_off(ctrl);
+	if (pdata->panel_info.dsi_master == pdata->panel_info.pdest)
+		mdss_dsi_panel_driver_off(ctrl);
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
-	/* clear idle state */
-
 	pr_debug("%s:-\n", __func__);
 	return 0;
 }
@@ -3124,7 +3129,6 @@ error:
 int mdss_dsi_panel_init(struct device_node *node,
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 	int ndx)
-
 {
 	int rc = 0;
 	static const char *panel_name;
@@ -3195,6 +3199,7 @@ int mdss_dsi_panel_init(struct device_node *node,
 	ctrl_pdata->switch_mode = mdss_dsi_panel_switch_mode;
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 	mdss_dsi_panel_driver_init(ctrl_pdata);
+	pinfo->mipi.switch_mode_pending = false;
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	return 0;
 }

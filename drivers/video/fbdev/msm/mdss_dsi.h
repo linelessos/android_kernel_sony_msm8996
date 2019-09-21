@@ -12,7 +12,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -281,8 +281,6 @@ struct dsi_shared_data {
 	struct clk *ahb_clk;
 	struct clk *axi_clk;
 	struct clk *mmss_misc_ahb_clk;
-	struct clk *tbu_clk;
-	struct clk *tbu_rt_clk;
 
 	/* Other shared clocks */
 	struct clk *ext_byte0_clk;
