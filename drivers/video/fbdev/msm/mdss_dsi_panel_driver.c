@@ -1,16 +1,12 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* drivers/video/fbdev/msm/mdss_dsi_panel_driver.c
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
  */
 /*
- * Copyright (C) 2015 Sony Mobile Communications Inc.
+ * Copyright (C) 2016 Sony Mobile Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -32,7 +28,6 @@
 #include <linux/uaccess.h>
 #include <linux/pm_qos.h>
 #include <linux/mdss_io_util.h>
-#include <linux/regulator/qpnp-labibb-regulator.h>
 
 #include "mdss.h"
 #include "mdss_panel.h"
@@ -40,6 +35,7 @@
 #include "mdss_debug.h"
 #include "mdss_dsi_panel_driver.h"
 #include "mdss_dsi_panel_debugfs.h"
+#include <linux/regulator/qpnp-labibb-regulator.h>
 
 static bool gpio_req;
 static u32 down_period;
@@ -50,15 +46,8 @@ static struct fps_data fpsd, vpsd;
 #define ADC_RNG_MIN		0
 #define ADC_RNG_MAX		1
 
-#define CHANGE_FPS_MIN 36
-#define CHANGE_FPS_MAX 63
-
 #define NODE_OF_HYBRID "/soc/dsi_panel_pwr_supply_hybrid_incell"
 #define NODE_OF_FULL "/soc/dsi_panel_pwr_supply_full_incell"
-
-#define PSEC ((u64)1000000000000)
-#define KSEC ((u64)1000)
-#define CHANGE_PAYLOAD(a, b) (spec_pdata->fps_cmds.cmds[a].payload[b])
 
 static unsigned long lcdid_adc = 1505000;
 static void vsync_handler(struct mdss_mdp_ctl *ctl, ktime_t t);
@@ -72,9 +61,8 @@ static int __init lcdid_adc_setup(char *str)
 
 	if (!*str)
 		return 0;
-	if (!kstrtoul(str, 0, &res)) {
+	if (!kstrtoul(str, 0, &res))
 		lcdid_adc = res;
-	}
 
 	return 1;
 }
@@ -178,9 +166,8 @@ static int mdss_dsi_panel_driver_vreg_ctrl(
 		else
 			wait = 0;
 
-		if (!ret && wait) {
+		if (!ret && wait)
 			usleep_range(wait * 1000, wait * 1000 + 100);
-		}
 	}
 
 	return ret;
@@ -281,7 +268,9 @@ static int mdss_dsi_panel_calculation_sleep(
 			pw_seq = &spec_pdata->off_seq;
 	}
 
-	if (gpio == spec_pdata->touch_vddio_gpio)
+	if (gpio == spec_pdata->disp_dcdc_en_gpio)
+		wait = pw_seq->disp_dcdc;
+	else if (gpio == spec_pdata->touch_vddio_gpio)
 		wait = pw_seq->touch_vddio;
 	else if (gpio == spec_pdata->touch_reset_gpio)
 		wait = pw_seq->touch_reset;
@@ -387,9 +376,12 @@ void mdss_dsi_panel_driver_state_change_off(struct incell_ctrl *incell)
 
 	pr_debug("%s: status:0x%x --->\n", __func__, (*state));
 
+	if (change_state != INCELL_STATE_NONE)
+		mdss_dsi_panel_driver_update_incell_bk(incell);
+
 	switch (change_state) {
 	case INCELL_STATE_NONE:
-		pr_debug("%s: Not change off status\n", __func__);
+		pr_notice("%s: Not change off status\n", __func__);
 		break;
 	case INCELL_STATE_S_OFF:
 		*state &= INCELL_SYSTEM_STATE_OFF;
@@ -505,6 +497,9 @@ int mdss_dsi_panel_driver_power_off(struct mdss_panel_data *pdata)
 	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "ibb", false);
 	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "lab", false);
 
+	mdss_dsi_panel_driver_set_gpio(ctrl_pdata,
+		(spec_pdata->disp_dcdc_en_gpio), false, 0);
+
 	if (!spec_pdata->off_seq.rst_b_seq) {
 		rc = mdss_dsi_panel_reset(pdata, 0);
 		if (rc)
@@ -517,11 +512,7 @@ int mdss_dsi_panel_driver_power_off(struct mdss_panel_data *pdata)
 	mdss_dsi_panel_driver_set_gpio(ctrl_pdata,
 		(spec_pdata->touch_vddio_gpio), false, 1);
 
-	if (gpio_is_valid(spec_pdata->disp_vddio_gpio))
-		gpio_set_value((spec_pdata->disp_vddio_gpio), 1);
-	if (pw_seq->disp_vddio)
-		usleep_range(pw_seq->disp_vddio * 1000,
-				pw_seq->disp_vddio * 1000 + 100);
+	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "vddio", false);
 
 	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "touch-avdd", false);
 
@@ -548,9 +539,12 @@ void mdss_dsi_panel_driver_state_change_on(struct incell_ctrl *incell)
 
 	pr_debug("%s: status:0x%x --->\n", __func__, (*state));
 
+	if (change_state != INCELL_STATE_NONE)
+		mdss_dsi_panel_driver_update_incell_bk(incell);
+
 	switch (change_state) {
 	case INCELL_STATE_NONE:
-		pr_debug("%s: Not change on status\n", __func__);
+		pr_notice("%s: Not change on status\n", __func__);
 		break;
 	case INCELL_STATE_S_ON:
 		*state |= INCELL_SYSTEM_STATE_ON;
@@ -626,9 +620,17 @@ void mdss_dsi_panel_driver_power_on_ctrl(struct incell_ctrl *incell)
 static int mdss_dsi_panel_driver_ewu_seq(struct mdss_panel_data *pdata)
 {
 	int ret = 0;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
+
+	ctrl_pdata = container_of(pdata,
+				struct mdss_dsi_ctrl_pdata, panel_data);
+	if (!ctrl_pdata) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
 
 	ret += mdss_dsi_panel_driver_reset_touch(pdata, 0);
-	ret += mdss_dsi_panel_driver_reset_panel(pdata, 1);
+	ret += mdss_dsi_panel_driver_reset_dual_display(ctrl_pdata);
 
 	return ret;
 }
@@ -658,6 +660,9 @@ int mdss_dsi_panel_driver_power_on(struct mdss_panel_data *pdata)
 		state = incell->state;
 	}
 
+	if (pdata->panel_info.pdest != DISPLAY_1)
+		return 0;
+
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
@@ -676,6 +681,7 @@ int mdss_dsi_panel_driver_power_on(struct mdss_panel_data *pdata)
 
 	if (spec_pdata->down_period) {
 		u32 kt = (u32)ktime_to_ms(ktime_get());
+
 		kt = (kt < down_period) ? kt + ~down_period : kt - down_period;
 		if (kt < spec_pdata->down_period)
 			usleep_range((spec_pdata->down_period - kt) *
@@ -685,20 +691,15 @@ int mdss_dsi_panel_driver_power_on(struct mdss_panel_data *pdata)
 	}
 
 	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "touch-avdd", true);
-	if (gpio_is_valid(spec_pdata->disp_vddio_gpio))
-		gpio_direction_output(
-				(spec_pdata->disp_vddio_gpio), 0);
-
-	if (pw_seq->disp_vddio) {
-		usleep_range(pw_seq->disp_vddio * 1000,
-				pw_seq->disp_vddio * 1000 + 100);
-	}
-
+	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "vddio", true);
 
 	mdss_dsi_panel_driver_gpio_output(ctrl_pdata,
 		(spec_pdata->touch_vddio_gpio), true, 0);
 
 	mdss_dsi_panel_driver_touch_pinctrl_set_state(ctrl_pdata, true);
+
+	mdss_dsi_panel_driver_gpio_output(ctrl_pdata,
+		(spec_pdata->disp_dcdc_en_gpio), true, 1);
 
 	if ((spec_pdata->panel_type == HYBRID_INCELL) &&
 	    (!mdss_dsi_panel_driver_is_power_on(state))) {
@@ -706,6 +707,7 @@ int mdss_dsi_panel_driver_power_on(struct mdss_panel_data *pdata)
 		wait = pw_seq->touch_reset_first;
 		usleep_range(wait * 1000, wait * 1000 + 100);
 	}
+
 	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "lab", true);
 	ret += mdss_dsi_panel_driver_vreg_ctrl(ctrl_pdata, "ibb", true);
 
@@ -759,6 +761,15 @@ int mdss_dsi_panel_driver_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 		}
 	}
 
+	if (gpio_is_valid(spec_pdata->disp_dcdc_en_gpio)) {
+		rc = gpio_request(spec_pdata->disp_dcdc_en_gpio,
+						"disp_dcdc_en_gpio");
+		if (rc) {
+			pr_err("request disp_dcdc_en gpio failed, rc=%d\n", rc);
+			goto disp_dcdc_en_gpio_err;
+		}
+	}
+
 	if (gpio_is_valid(spec_pdata->touch_vddio_gpio)) {
 		rc = gpio_request(spec_pdata->touch_vddio_gpio,
 						"touch_vddio");
@@ -798,6 +809,9 @@ touch_reset_gpio_err:
 	if (gpio_is_valid(spec_pdata->touch_vddio_gpio))
 		gpio_free(spec_pdata->touch_vddio_gpio);
 touch_vddio_gpio_err:
+	if (gpio_is_valid(spec_pdata->disp_dcdc_en_gpio))
+		gpio_free(spec_pdata->disp_dcdc_en_gpio);
+disp_dcdc_en_gpio_err:
 	if (gpio_is_valid(spec_pdata->disp_vddio_gpio))
 		gpio_free(spec_pdata->disp_vddio_gpio);
 disp_vddio_gpio_err:
@@ -823,6 +837,9 @@ void mdss_dsi_panel_driver_gpio_free(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 
 	if (gpio_is_valid(spec_pdata->touch_vddio_gpio))
 		gpio_free(spec_pdata->touch_vddio_gpio);
+
+	if (gpio_is_valid(spec_pdata->disp_dcdc_en_gpio))
+		gpio_free(spec_pdata->disp_dcdc_en_gpio);
 
 	if (gpio_is_valid(spec_pdata->disp_vddio_gpio))
 		gpio_free(spec_pdata->disp_vddio_gpio);
@@ -870,6 +887,14 @@ void mdss_dsi_panel_driver_parse_gpio_params(struct platform_device *ctrl_pdev,
 
 	if (!gpio_is_valid(spec_pdata->touch_int_gpio))
 		pr_err("%s:%d, touch int gpio not specified\n",
+						__func__, __LINE__);
+
+	spec_pdata->disp_dcdc_en_gpio = of_get_named_gpio(
+			ctrl_pdev->dev.of_node,
+			"somc,disp-dcdc-en-gpio", 0);
+
+	if (!gpio_is_valid(spec_pdata->disp_dcdc_en_gpio))
+		pr_err("%s:%d, disp dcdc en gpio not specified\n",
 						__func__, __LINE__);
 }
 
@@ -981,6 +1006,44 @@ int mdss_dsi_panel_driver_reset_touch(struct mdss_panel_data *pdata, int enable)
 	return rc;
 }
 
+static bool mdss_dsi_panel_driver_split_display_enabled(void)
+{
+	/*
+	 * currently the only supported mode is split display.
+	 * So, if both controllers are initialized, then assume that
+	 * split display mode is enabled.
+	 */
+	return ctrl_list[DSI_CTRL_LEFT] && ctrl_list[DSI_CTRL_RIGHT];
+}
+
+int mdss_dsi_panel_driver_reset_dual_display(
+			struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
+	struct mdss_dsi_ctrl_pdata *mctrl_pdata = NULL;
+	int ret = 0;
+
+	if (!mdss_dsi_panel_driver_split_display_enabled()) {
+		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
+			pr_debug("reset enable: pinctrl not enabled\n");
+		ret = mdss_dsi_panel_reset(&(ctrl_pdata->panel_data), 1);
+	} else if (ctrl_pdata->ndx == DSI_CTRL_1) {
+		mctrl_pdata = mdss_dsi_get_other_ctrl(ctrl_pdata);
+		if (!mctrl_pdata) {
+			pr_warn("%s: Unable to get other control\n",
+				__func__);
+			ret = -EINVAL;
+		} else {
+			if (mdss_dsi_pinctrl_set_state(mctrl_pdata, true))
+				pr_debug("other reset pinctrl not enabled\n");
+			ret = mdss_dsi_panel_reset(&(mctrl_pdata->panel_data), 1);
+		}
+	} else {
+		pr_debug("%s: reset pinctrl not yet\n", __func__);
+	}
+
+	return ret;
+}
+
 static int mdss_dsi_property_read_u32_var(struct device_node *np,
 		char *name, u32 **out_data, int *num)
 {
@@ -1023,12 +1086,13 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 		struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
 	struct mdss_panel_specific_pdata *spec_pdata = NULL;
+	struct mdss_panel_info *pinfo = NULL;
 	u32 tmp = 0;
-	u32 res[2];
 	int rc = 0;
 	struct device_node *panel_np;
 	const char *panel_type_name;
-	struct mdss_panel_info *pinfo = &(ctrl_pdata->panel_data.panel_info);
+	static const char *fps_mode;
+	static const char *fps_type;
 	struct mdss_panel_labibb_data *labibb = NULL;
 
 	if (ctrl_pdata == NULL) {
@@ -1037,6 +1101,7 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	}
 
 	spec_pdata = ctrl_pdata->spec_pdata;
+	pinfo = &(ctrl_pdata->panel_data.panel_info);
 
 	spec_pdata->pcc_enable = of_property_read_bool(np, "somc,mdss-dsi-pcc-enable");
 	if (spec_pdata->pcc_enable) {
@@ -1077,27 +1142,100 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 			pr_err("%s:%d, Unable to read pcc table",
 				__func__, __LINE__);
 		}
-
-		rc = of_property_read_u32_array(np,
-			"somc,mdss-dsi-u-rev", res, 2);
-		if (rc) {
-			spec_pdata->rev_u[0] = 0;
-			spec_pdata->rev_u[1] = 0;
-		} else {
-			spec_pdata->rev_u[0] = res[0];
-			spec_pdata->rev_u[1] = res[1];
-		}
-		rc = of_property_read_u32_array(np,
-			"somc,mdss-dsi-v-rev", res, 2);
-		if (rc) {
-			spec_pdata->rev_v[0] = 0;
-			spec_pdata->rev_v[1] = 0;
-		} else {
-			spec_pdata->rev_v[0] = res[0];
-			spec_pdata->rev_v[1] = res[1];
-		}
-
 		spec_pdata->pcc_data.pcc_sts |= PCC_STS_UD;
+	}
+
+	spec_pdata->srgb_pcc_enable = of_property_read_bool(np,
+			"somc,mdss-dsi-srgb-pcc-enable");
+	if (spec_pdata->srgb_pcc_enable) {
+		rc = of_property_read_u32(np,
+			"somc,mdss-dsi-srgb-pcc-table-size", &tmp);
+		spec_pdata->srgb_pcc_data.tbl_size =
+			(!rc ? tmp : 0);
+
+		spec_pdata->srgb_pcc_data.color_tbl =
+			kzalloc(spec_pdata->srgb_pcc_data.tbl_size *
+				sizeof(struct mdss_pcc_color_tbl),
+				GFP_KERNEL);
+		if (!spec_pdata->srgb_pcc_data.color_tbl) {
+			pr_err("no mem assigned: kzalloc fail\n");
+			return -ENOMEM;
+		}
+		rc = of_property_read_u32_array(np,
+			"somc,mdss-dsi-srgb-pcc-table",
+			(u32 *)spec_pdata->srgb_pcc_data.color_tbl,
+			spec_pdata->srgb_pcc_data.tbl_size *
+			sizeof(struct mdss_pcc_color_tbl) /
+			sizeof(u32));
+		if (rc) {
+			spec_pdata->srgb_pcc_data.tbl_size = 0;
+			kzfree(spec_pdata->srgb_pcc_data.color_tbl);
+			spec_pdata->srgb_pcc_data.color_tbl = NULL;
+			pr_err("%s:%d, Unable to read sRGB pcc table",
+				__func__, __LINE__);
+		}
+	}
+
+	spec_pdata->vivid_pcc_enable = of_property_read_bool(np,
+			"somc,mdss-dsi-vivid-pcc-enable");
+	if (spec_pdata->vivid_pcc_enable) {
+		rc = of_property_read_u32(np,
+			"somc,mdss-dsi-vivid-pcc-table-size", &tmp);
+		spec_pdata->vivid_pcc_data.tbl_size =
+			(!rc ? tmp : 0);
+
+		spec_pdata->vivid_pcc_data.color_tbl =
+			kzalloc(spec_pdata->vivid_pcc_data.tbl_size *
+				sizeof(struct mdss_pcc_color_tbl),
+				GFP_KERNEL);
+		if (!spec_pdata->vivid_pcc_data.color_tbl) {
+			pr_err("no mem assigned: kzalloc fail\n");
+			return -ENOMEM;
+		}
+		rc = of_property_read_u32_array(np,
+			"somc,mdss-dsi-vivid-pcc-table",
+			(u32 *)spec_pdata->vivid_pcc_data.color_tbl,
+			spec_pdata->vivid_pcc_data.tbl_size *
+			sizeof(struct mdss_pcc_color_tbl) /
+			sizeof(u32));
+		if (rc) {
+			spec_pdata->vivid_pcc_data.tbl_size = 0;
+			kzfree(spec_pdata->vivid_pcc_data.color_tbl);
+			spec_pdata->vivid_pcc_data.color_tbl = NULL;
+			pr_err("%s:%d, Unable to read Vivid pcc table",
+				__func__, __LINE__);
+		}
+	}
+
+	spec_pdata->hdr_pcc_enable = of_property_read_bool(np,
+			"somc,mdss-dsi-hdr-pcc-enable");
+	if (spec_pdata->hdr_pcc_enable) {
+		rc = of_property_read_u32(np,
+			"somc,mdss-dsi-hdr-pcc-table-size", &tmp);
+		spec_pdata->hdr_pcc_data.tbl_size =
+			(!rc ? tmp : 0);
+
+		spec_pdata->hdr_pcc_data.color_tbl =
+			kzalloc(spec_pdata->hdr_pcc_data.tbl_size *
+				sizeof(struct mdss_pcc_color_tbl),
+				GFP_KERNEL);
+		if (!spec_pdata->hdr_pcc_data.color_tbl) {
+			pr_err("no mem assigned: kzalloc fail\n");
+			return -ENOMEM;
+		}
+		rc = of_property_read_u32_array(np,
+			"somc,mdss-dsi-hdr-pcc-table",
+			(u32 *)spec_pdata->hdr_pcc_data.color_tbl,
+			spec_pdata->hdr_pcc_data.tbl_size *
+			sizeof(struct mdss_pcc_color_tbl) /
+			sizeof(u32));
+		if (rc) {
+			spec_pdata->hdr_pcc_data.tbl_size = 0;
+			kzfree(spec_pdata->hdr_pcc_data.color_tbl);
+			spec_pdata->hdr_pcc_data.color_tbl = NULL;
+			pr_err("%s:%d, Unable to read HDR pcc table",
+				__func__, __LINE__);
+		}
 	}
 
 	(void)mdss_dsi_property_read_u32_var(np,
@@ -1134,6 +1272,10 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	spec_pdata->on_seq.disp_vsn = !rc ? tmp : 0;
 
 	rc = of_property_read_u32(np,
+			"somc,pw-wait-after-on-dcdc", &tmp);
+	spec_pdata->on_seq.disp_dcdc = !rc ? tmp : 0;
+
+	rc = of_property_read_u32(np,
 			"somc,pw-wait-after-off-vddio", &tmp);
 	spec_pdata->off_seq.disp_vddio = !rc ? tmp : 0;
 
@@ -1144,6 +1286,10 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	rc = of_property_read_u32(np,
 			"somc,pw-wait-after-off-vsn", &tmp);
 	spec_pdata->off_seq.disp_vsn = !rc ? tmp : 0;
+
+	rc = of_property_read_u32(np,
+			"somc,pw-wait-after-off-dcdc", &tmp);
+	spec_pdata->off_seq.disp_dcdc = !rc ? tmp : 0;
 
 	rc = of_property_read_u32(np,
 			"somc,pw-wait-after-on-touch-avdd", &tmp);
@@ -1223,10 +1369,71 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 		}
 		spec_pdata->chg_fps.dric_vdisp = tmp;
 
-		spec_pdata->chg_fps.susres_mode = of_property_read_bool(np,
-			"somc,change-fps-suspend-resume-mode");
+		fps_type = of_get_property(np,
+					"somc,change-fps-panel-type", NULL);
+		if (!fps_type) {
+			pr_err("%s:%d, Panel type not specified\n",
+							__func__, __LINE__);
+			goto error;
+		}
 
-		if (spec_pdata->panel_type == HYBRID_INCELL) {
+		if (!strncmp(fps_type, "uhd_4k_type", 11)) {
+			spec_pdata->chg_fps.type = FPS_TYPE_UHD_4K;
+		} else if (!strncmp(fps_type, "hybrid_incell_type", 18)) {
+			spec_pdata->chg_fps.type = FPS_TYPE_HYBRID_INCELL;
+		} else if (!strncmp(fps_type, "full_incell_type", 16)) {
+			spec_pdata->chg_fps.type = FPS_TYPE_FULL_INCELL;
+		} else {
+			pr_err("%s: Unable to read fps panel type\n", __func__);
+			goto error;
+		}
+
+		fps_mode = of_get_property(np,
+					"somc,change-fps-panel-mode", NULL);
+		if (!fps_mode) {
+			pr_err("%s:%d, Panel mode not specified\n",
+							__func__, __LINE__);
+			goto error;
+		}
+
+		if (!strncmp(fps_mode, "susres_mode", 11)) {
+			spec_pdata->chg_fps.mode = FPS_MODE_SUSRES;
+		} else if (!strncmp(fps_mode, "dynamic_mode", 12)) {
+			spec_pdata->chg_fps.mode = FPS_MODE_DYNAMIC;
+		} else {
+			pr_err("%s: Unable to read fps panel mode\n", __func__);
+			goto error;
+		}
+
+		switch (spec_pdata->chg_fps.type) {
+		case FPS_TYPE_UHD_4K:
+			(void)mdss_dsi_property_read_u32_var(np,
+				"somc,change-fps-rtn-pos",
+				(u32 **)&spec_pdata->chg_fps.send_pos.pos,
+				&spec_pdata->chg_fps.send_pos.num);
+
+			rc = of_property_read_u32(np,
+					"somc,driver-ic-total-porch", &tmp);
+			if (rc) {
+				pr_err("%s: DrIC total_porch not specified\n",
+								__func__);
+				goto error;
+			}
+			spec_pdata->chg_fps.dric_total_porch = tmp;
+
+			rc = of_property_read_u32(np,
+						"somc,driver-ic-rclk", &tmp);
+			if (rc) {
+				pr_err("%s: DrIC rclk not specified\n",
+								__func__);
+				goto error;
+			}
+			spec_pdata->chg_fps.dric_rclk = tmp;
+
+			spec_pdata->chg_fps.rtn_adj = of_property_read_bool(np,
+					"somc,change-fps-rtn-adj");
+			break;
+		case FPS_TYPE_HYBRID_INCELL:
 			(void)mdss_dsi_property_read_u32_var(np,
 				"somc,change-fps-send-pos",
 				(u32 **)&spec_pdata->chg_fps.send_pos.pos,
@@ -1300,7 +1507,8 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 				spec_pdata->chg_fps.porch_range[FPS_PORCH_RNG_MIN] = 0;
 				spec_pdata->chg_fps.porch_range[FPS_PORCH_RNG_MAX] = 0;
 			}
-		} else if (spec_pdata->panel_type == FULL_INCELL) {
+			break;
+		case FPS_TYPE_FULL_INCELL:
 			(void)mdss_dsi_property_read_u32_var(np,
 				"somc,change-fps-rtn-pos",
 				(u32 **)&spec_pdata->chg_fps.send_pos.pos,
@@ -1332,20 +1540,12 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 				goto error;
 			}
 			spec_pdata->chg_fps.dric_tp = tmp;
-		} else {
-			pr_err("%s:Read panel-type name failed.\n",
-				__func__);
+			break;
+		default:
+			pr_err("%s: Read panel mode failed.\n", __func__);
 			goto error;
 		}
 	}
-
-	rc = of_property_read_u32(np,
-			"somc,mdss-dsi-disp-on-in-hs", &tmp);
-	spec_pdata->disp_on_in_hs = !rc ? tmp : 0;
-
-	rc = of_property_read_u32(np,
-		"somc,mdss-dsi-wait-time-before-post-on-cmd", &tmp);
-	spec_pdata->wait_time_before_post_on_cmd = !rc ? tmp : 0;
 
 	/* Parsing lab/ibb register settings */
 	labibb = &spec_pdata->labibb;
@@ -1357,10 +1557,10 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	if (of_find_property(np, "somc,ibb-output-voltage", &tmp))
 		labibb->labibb_ctrl_state |= OVR_IBB_VOLTAGE;
 
-	if (of_find_property(np, "qcom,qpnp-lab-limit-maximum-current", &tmp))
+	if (of_find_property(np, "somc,qpnp-lab-limit-maximum-current", &tmp))
 		labibb->labibb_ctrl_state |= OVR_LAB_CURRENT_MAX;
 
-	if (of_find_property(np, "qcom,qpnp-ibb-limit-maximum-current", &tmp))
+	if (of_find_property(np, "somc,qpnp-ibb-limit-maximum-current", &tmp))
 		labibb->labibb_ctrl_state |= OVR_IBB_CURRENT_MAX;
 
 	if (of_find_property(np, "somc,qpnp-lab-max-precharge-time", &tmp))
@@ -1395,7 +1595,7 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	labibb->lab_current_max = LAB_CURRENT_MAX;
 	if (((labibb->labibb_ctrl_state) & OVR_LAB_CURRENT_MAX)) {
 		rc = of_property_read_u32(np,
-			"qcom,qpnp-lab-limit-maximum-current", &tmp);
+			"somc,qpnp-lab-limit-maximum-current", &tmp);
 		if (!rc)
 			labibb->lab_current_max = tmp;
 	}
@@ -1403,7 +1603,7 @@ int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 	labibb->ibb_current_max = IBB_CURRENT_MAX;
 	if (((labibb->labibb_ctrl_state) & OVR_IBB_CURRENT_MAX)) {
 		rc = of_property_read_u32(np,
-			"qcom,qpnp-ibb-limit-maximum-current", &tmp);
+			"somc,qpnp-ibb-limit-maximum-current", &tmp);
 		if (!rc)
 			labibb->ibb_current_max = tmp;
 	}
@@ -1571,60 +1771,52 @@ exit:
 	return ret;
 }
 
-void mdss_mdp_pcc_copy_to_v1_7(struct mdp_pcc_cfg_data *pcc_config,
-			       struct mdp_pcc_data_v1_7 *pcc_payload)
+static int find_color_area_for_srgb(struct mdss_pcc_data *pcc_data)
 {
-	pcc_payload->r.r = pcc_config->r.r;
-	pcc_payload->g.g = pcc_config->g.g;
-	pcc_payload->b.b = pcc_config->b.b;
-}
-
-void mdss_mdp_pcc_copy_from_v1_7(struct mdp_pcc_data_v1_7 *pcc_payload,
-				 struct mdp_pcc_cfg_data *pcc_config)
-{
-	pcc_config->r.r = pcc_payload->r.r;
-	pcc_config->g.g = pcc_payload->g.g;
-	pcc_config->b.b = pcc_payload->b.b;
-}
-
-static int mdss_dsi_panel_driver_calibrate_uv_data(
-		u32 *rev_data, u32 *uv_data)
-{
+	int i;
 	int ret = 0;
 
-	if (rev_data[1] != 0) {
-		if (rev_data[0] == 0) {
-			*uv_data += rev_data[1];
-		 } else if (rev_data[0] == 1) {
-			if (*uv_data < rev_data[1])
-				*uv_data = 0;
-			else
-				*uv_data -= rev_data[1];
-		} else {
-			pr_err("%s: Invalid rev data.\n", __func__);
-			ret = -EINVAL;
-		}
+	for (i = 0; i < pcc_data->tbl_size; i++) {
+		if (pcc_data->u_data < pcc_data->color_tbl[i].u_min)
+			continue;
+		if (pcc_data->u_data > pcc_data->color_tbl[i].u_max)
+			continue;
+		if (pcc_data->v_data < pcc_data->color_tbl[i].v_min)
+			continue;
+		if (pcc_data->v_data > pcc_data->color_tbl[i].v_max)
+			continue;
+		break;
+	}
+	pcc_data->tbl_idx = i;
+	if (i >= pcc_data->tbl_size) {
+		ret = -EINVAL;
 	}
 
 	return ret;
+}
+
+static int find_color_area_for_vivid(struct mdss_pcc_data *pcc_data)
+{
+	return find_color_area_for_srgb(pcc_data);
+}
+
+static int find_color_area_for_hdr(struct mdss_pcc_data *pcc_data)
+{
+	return find_color_area_for_srgb(pcc_data);
 }
 
 int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 	struct mdss_pcc_data *pcc_data = NULL;
-	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
-	struct msm_fb_data_type *mfd = mdata->ctl_off->mfd;
+	struct mdss_pcc_data *srgb_pcc_data = NULL;
+	struct mdss_pcc_data *vivid_pcc_data = NULL;
+	struct mdss_pcc_data *hdr_pcc_data = NULL;
 	struct mdp_pcc_cfg_data pcc_config;
 	int ret;
-	u32 copyback;
 	u32 raw_u_data = 0, raw_v_data = 0;
 	struct mdss_panel_specific_pdata *spec_pdata = NULL;
-	u32 copy_from_kernel = 1;
-	struct mdp_pcc_data_v1_7 pcc_payload;
-	struct mdp_pp_feature_version pcc_version = {
-		.pp_feature = PCC,
-	};
+	u8 idx = 0;
 
 	if (pdata == NULL) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -1635,7 +1827,7 @@ int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata)
 				panel_data);
 	spec_pdata = ctrl_pdata->spec_pdata;
 
-	if (!spec_pdata->pcc_enable) {
+	if (!ctrl_pdata->spec_pdata->pcc_enable) {
 		if (pdata->panel_info.dsi_master == pdata->panel_info.pdest)
 			pr_notice("%s (%d): pcc isn't enabled.\n",
 				__func__, __LINE__);
@@ -1645,25 +1837,14 @@ int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata)
 	pcc_data = &ctrl_pdata->spec_pdata->pcc_data;
 
 	mdss_dsi_op_mode_config(DSI_CMD_MODE, pdata);
-	if (spec_pdata->pre_uv_read_cmds.cmds)
+	if (ctrl_pdata->spec_pdata->pre_uv_read_cmds.cmds)
 		mdss_dsi_panel_cmds_send(
-				ctrl_pdata, &spec_pdata->pre_uv_read_cmds, CMD_REQ_COMMIT);
-	if (spec_pdata->uv_read_cmds.cmds) {
+			ctrl_pdata, &ctrl_pdata->spec_pdata->pre_uv_read_cmds, CMD_REQ_COMMIT);
+	if (ctrl_pdata->spec_pdata->uv_read_cmds.cmds) {
 		get_uv_data(ctrl_pdata, &pcc_data->u_data, &pcc_data->v_data);
 		raw_u_data = pcc_data->u_data;
 		raw_v_data = pcc_data->v_data;
 	}
-
-	ret = mdss_dsi_panel_driver_calibrate_uv_data(
-			spec_pdata->rev_u, &pcc_data->u_data);
-	if (ret)
-		goto exit;
-
-	ret = mdss_dsi_panel_driver_calibrate_uv_data(
-			spec_pdata->rev_v, &pcc_data->v_data);
-	if (ret)
-		goto exit;
-
 	if (pcc_data->u_data == 0 && pcc_data->v_data == 0) {
 		pr_notice("%s (%d): u,v is flashed 0.\n",
 			__func__, __LINE__);
@@ -1677,27 +1858,76 @@ int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata)
 	}
 
 	memset(&pcc_config, 0, sizeof(struct mdp_pcc_cfg_data));
-	memset(&pcc_payload, 0, sizeof(struct mdp_pcc_data_v1_7));
 	ret = find_color_area(&pcc_config, pcc_data);
 	if (ret) {
 		pr_err("%s: failed to find color area.\n", __func__);
 		goto exit;
 	}
 
-	if (pcc_data->color_tbl[pcc_data->tbl_idx].color_type != UNUSED) {
-		ret = mdss_mdp_pp_get_version(&pcc_version);
+	if (spec_pdata->srgb_pcc_enable) {
+		srgb_pcc_data = &spec_pdata->srgb_pcc_data;
+		srgb_pcc_data->u_data = pcc_data->u_data;
+		srgb_pcc_data->v_data = pcc_data->v_data;
+		ret = find_color_area_for_srgb(srgb_pcc_data);
 		if (ret) {
-			pr_err("get pp version failed ret %d\n", ret);
+			pr_err("%s: failed to find color area.\n", __func__);
 			goto exit;
 		}
-		pcc_config.cfg_payload = &pcc_payload;
-		pcc_config.version = pcc_version.version_info;
-		pcc_config.block = MDP_LOGICAL_BLOCK_DISP_0;
-		pcc_config.ops = MDP_PP_OPS_ENABLE | MDP_PP_OPS_WRITE;
-		mdss_mdp_pcc_copy_to_v1_7(&pcc_config, &pcc_payload);
-		ret = mdss_mdp_pcc_config(mfd, &pcc_config, &copyback, copy_from_kernel);
-		if (ret != 0)
-			pr_err("failed by settings of pcc data.\n");
+		idx = srgb_pcc_data->tbl_idx;
+		pr_notice("SRGB : %s (%d): raw_ud=%d raw_vd=%d ct=%d "
+			"area=%d ud=%d vd=%d r=0x%08X g=0x%08X b=0x%08X\n",
+			__func__, __LINE__,
+			raw_u_data, raw_v_data,
+			srgb_pcc_data->color_tbl[idx].color_type,
+			srgb_pcc_data->color_tbl[idx].area_num,
+			srgb_pcc_data->u_data, srgb_pcc_data->v_data,
+			srgb_pcc_data->color_tbl[idx].r_data,
+			srgb_pcc_data->color_tbl[idx].g_data,
+			srgb_pcc_data->color_tbl[idx].b_data);
+	}
+
+	if (spec_pdata->vivid_pcc_enable) {
+		vivid_pcc_data = &spec_pdata->vivid_pcc_data;
+		vivid_pcc_data->u_data = pcc_data->u_data;
+		vivid_pcc_data->v_data = pcc_data->v_data;
+		ret = find_color_area_for_vivid(vivid_pcc_data);
+		if (ret) {
+			pr_err("%s: failed to find color area.\n", __func__);
+			goto exit;
+		}
+		idx = vivid_pcc_data->tbl_idx;
+		pr_notice("Vivid : %s (%d): raw_ud=%d raw_vd=%d ct=%d "
+			"area=%d ud=%d vd=%d r=0x%08X g=0x%08X b=0x%08X\n",
+			__func__, __LINE__,
+			raw_u_data, raw_v_data,
+			vivid_pcc_data->color_tbl[idx].color_type,
+			vivid_pcc_data->color_tbl[idx].area_num,
+			vivid_pcc_data->u_data, vivid_pcc_data->v_data,
+			vivid_pcc_data->color_tbl[idx].r_data,
+			vivid_pcc_data->color_tbl[idx].g_data,
+			vivid_pcc_data->color_tbl[idx].b_data);
+	}
+
+	if (spec_pdata->hdr_pcc_enable) {
+		hdr_pcc_data = &spec_pdata->hdr_pcc_data;
+		hdr_pcc_data->u_data = pcc_data->u_data;
+		hdr_pcc_data->v_data = pcc_data->v_data;
+		ret = find_color_area_for_hdr(hdr_pcc_data);
+		if (ret) {
+			pr_err("%s: failed to find color area.\n", __func__);
+			goto exit;
+		}
+		idx = hdr_pcc_data->tbl_idx;
+		pr_notice("HDR : %s (%d): raw_ud=%d raw_vd=%d ct=%d "
+			"area=%d ud=%d vd=%d r=0x%08X g=0x%08X b=0x%08X\n",
+			__func__, __LINE__,
+			raw_u_data, raw_v_data,
+			hdr_pcc_data->color_tbl[idx].color_type,
+			hdr_pcc_data->color_tbl[idx].area_num,
+			hdr_pcc_data->u_data, hdr_pcc_data->v_data,
+			hdr_pcc_data->color_tbl[idx].r_data,
+			hdr_pcc_data->color_tbl[idx].g_data,
+			hdr_pcc_data->color_tbl[idx].b_data);
 	}
 
 	pr_notice("%s (%d): raw_ud=%d raw_vd=%d "
@@ -1715,11 +1945,13 @@ exit:
 	return 0;
 }
 
-struct mdss_panel_specific_pdata *mdss_panel2spec_pdata(struct mdss_panel_data *pdata)
+struct mdss_panel_specific_pdata *mdss_panel2spec_pdata(
+					struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata;
 
-	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata, panel_data);
+	ctrl_pdata = container_of(pdata,
+			struct mdss_dsi_ctrl_pdata, panel_data);
 	return ctrl_pdata->spec_pdata;
 }
 
@@ -1888,7 +2120,7 @@ static void mdss_dsi_panel_driver_fps_cmd_send(
 
 	pinfo->mipi.frame_rate = dfps;
 
-	if (!spec_pdata->chg_fps.susres_mode) {
+	if (spec_pdata->chg_fps.mode != FPS_MODE_SUSRES) {
 		pr_debug("%s: fps change sequence\n", __func__);
 		mdss_dsi_panel_cmds_send(ctrl_pdata,
 				&ctrl_pdata->spec_pdata->fps_cmds,
@@ -1917,14 +2149,27 @@ static int mdss_dsi_panel_driver_fps_calc_rtn(
 	vrclk = spec_pdata->chg_fps.dric_rclk;
 	vtp = spec_pdata->chg_fps.dric_tp;
 
+	if (!dfpks || !(vdisp + vtotal_porch + vtp)) {
+		pr_err("%s: Invalid param dfpks=%d vdisp=%d porch=%d vtp=%d\n",
+				__func__, dfpks, vdisp, vtotal_porch, vtp);
+		return -EINVAL;
+	}
+
 	rtn = (u16)(
 		(vrclk * KSEC) /
 		(dfpks * (vdisp + vtotal_porch + vtp))
-	);
+		);
+
+	if (!rtn || !(vdisp + vtotal_porch + vtp)) {
+		pr_err("%s: Invalid param rtn=%d vdisp=%d porch=%d vtp=%d\n",
+				__func__, dfpks, vdisp, vtotal_porch, vtp);
+		return -EINVAL;
+	}
+
 	dfpks_rev = (u32)(
 		(vrclk * KSEC) /
 		(rtn * (vdisp + vtotal_porch + vtp))
-	);
+		);
 
 	pr_debug("%s: porch=%d vdisp=%d vtp=%d vrclk=%d rtn=0x%x\n",
 		__func__, vtotal_porch, vdisp, vtp, vrclk, rtn);
@@ -1970,9 +2215,10 @@ static int mdss_dsi_panel_driver_fps_calc_porch
 	u16 rtn;
 	u8 mask_pos;
 	char mask;
-	char porch[2] = {0};
-	char send[10] = {0};
+	char porch[CHANGE_FPS_PORCH] = {0};
+	char send[CHANGE_FPS_SEND] = {0};
 	struct mdss_panel_specific_pdata *spec_pdata = ctrl_pdata->spec_pdata;
+	struct dsi_panel_cmds *fps_cmds = &(spec_pdata->fps_cmds);
 
 	rtn = spec_pdata->chg_fps.dric_rtn;
 	vdisp = spec_pdata->chg_fps.dric_vdisp;
@@ -1984,10 +2230,15 @@ static int mdss_dsi_panel_driver_fps_calc_porch
 	porch_range_max = spec_pdata->chg_fps.porch_range[FPS_PORCH_RNG_MAX];
 	porch_range_min = spec_pdata->chg_fps.porch_range[FPS_PORCH_RNG_MIN];
 
+	if (!dfpks || !vmclk || !rtn) {
+		pr_err("%s: Invalid param dfpks=%d vmclk=%llu rtn%d\n",
+				__func__, dfpks, vmclk, rtn);
+		return -EINVAL;
+	}
+
 	porch_calc = (u16)((
 			(((PSEC * KSEC) - (KSEC * vtouch * (u64)dfpks)) /
-			((u64)dfpks * vmclk * (u64)rtn))
-			- (u64)vdisp) / 2);
+			((u64)dfpks * vmclk * (u64)rtn)) - (u64)vdisp) / 2);
 
 	if (porch_range_max > 0) {
 		if ((porch_calc < porch_range_min)
@@ -1998,6 +2249,13 @@ static int mdss_dsi_panel_driver_fps_calc_porch
 		}
 	}
 
+	if (!(vmclk * rtn * (vdisp + porch_calc) + vtouch)) {
+		pr_err("%s: Invalid param \
+			vmclk=%llu rtn=%d vdisp=%d porch=%d vtouch=%llu\n",
+			__func__, vmclk, rtn, vdisp, porch_calc, vtouch);
+		return -EINVAL;
+	}
+
 	dfpks_rev = (u32)(
 		(PSEC * KSEC) /
 		(vmclk * rtn * (vdisp + porch_calc) + vtouch));
@@ -2005,7 +2263,7 @@ static int mdss_dsi_panel_driver_fps_calc_porch
 	pr_debug("%s: porch=%d vdisp=%d vtouch=%llu vmclk=%llu rtn=0x%x\n",
 		__func__, porch_calc, vdisp, vtouch, vmclk, rtn);
 
-	for (i = 0; i < 2 ; i++) {
+	for (i = 0; i < CHANGE_FPS_PORCH ; i++) {
 		porch[i] = (char)(porch_calc & 0x00FF);
 		pr_debug("%s: porch[%d]=0x%x\n", __func__, i, porch[i]);
 		porch_calc = (porch_calc >> 8);
@@ -2024,9 +2282,74 @@ static int mdss_dsi_panel_driver_fps_calc_porch
 				send[j] = (mask | send[j]);
 			CHANGE_PAYLOAD(cmds, payload + j) = send[j];
 			pr_debug("%s: fps_cmds.cmds[%d].payload[%d]) = 0x%x\n",
-				__func__, cmds, payload + j,
-				spec_pdata->fps_cmds.cmds[cmds].payload[payload + j]);
+				__func__,
+				cmds, payload + j,
+				fps_cmds->cmds[cmds].payload[payload + j]);
 		}
+	}
+
+	mdss_dsi_panel_driver_fps_cmd_send(ctrl_pdata, dfpks_rev, dfpks);
+
+	return 0;
+}
+
+static int mdss_dsi_panel_driver_fps_calc_adj
+		(struct mdss_dsi_ctrl_pdata *ctrl_pdata, int dfpks) {
+	u32 dfpks_rev;
+	u32 vtotal_porch, vdisp, vrclk;
+	u32 cmds, payload;
+	struct mdss_panel_specific_pdata *spec_pdata = ctrl_pdata->spec_pdata;
+	u16 rtn;
+	int i, j, byte_cnt;
+	char send_rtn[sizeof(u16)] = {0}, adj;
+
+	if (!spec_pdata) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	vtotal_porch = spec_pdata->chg_fps.dric_total_porch;
+	vdisp = spec_pdata->chg_fps.dric_vdisp;
+	vrclk = spec_pdata->chg_fps.dric_rclk;
+	adj = spec_pdata->chg_fps.rtn_adj ? 1 : 0;
+
+	if (!dfpks || !(vdisp + vtotal_porch)) {
+		pr_err("%s: Invalid param dfpks=%d vdisp=%d porch=%d\n",
+				__func__, dfpks, vdisp, vtotal_porch);
+		return -EINVAL;
+	}
+
+	rtn = (u16)(vrclk / (dfpks * (vdisp + vtotal_porch) / 1000)) - adj;
+
+	if (!rtn || !(vdisp + vtotal_porch)) {
+		pr_err("%s: Invalid param rtn=%d vdisp=%d　porch=%d\n",
+				__func__, rtn, vdisp, vtotal_porch);
+		return -EINVAL;
+	}
+
+	dfpks_rev = (u32)(vrclk / (rtn * (vdisp + vtotal_porch) / 1000));
+
+	pr_debug("%s: porch=%d vdisp=%d vrclk=%d rtn=0x%x adj=%d\n",
+		__func__, vtotal_porch, vdisp, vrclk, rtn + adj, adj);
+
+	for (i = 0; i < sizeof(send_rtn) ; i++) {
+		send_rtn[i] = (char)(rtn & 0x00FF);
+		pr_debug("%s: send_rtn[%d]=0x%x\n",
+				__func__, i, send_rtn[i]);
+		if (rtn > 0xFF) {
+			rtn = (rtn >> 8);
+		} else {
+			byte_cnt = i;
+			break;
+		}
+	}
+
+	for (i = 0; i < (spec_pdata->chg_fps.send_pos.num / 2); i++) {
+		cmds = spec_pdata->chg_fps.send_pos.pos[(i * 2)];
+		payload = spec_pdata->chg_fps.send_pos.pos[(i * 2) + 1];
+		for (j = 0; j <= byte_cnt ; j++)
+			CHANGE_PAYLOAD(cmds, payload + j) =
+				send_rtn[byte_cnt - j];
 	}
 
 	mdss_dsi_panel_driver_fps_cmd_send(ctrl_pdata, dfpks_rev, dfpks);
@@ -2045,12 +2368,20 @@ static int mdss_dsi_panel_chg_fps_calc
 		return ret;
 	}
 
-	if (spec_pdata->panel_type == HYBRID_INCELL)
+	switch (spec_pdata->chg_fps.type) {
+	case FPS_TYPE_UHD_4K:
+		ret = mdss_dsi_panel_driver_fps_calc_adj(ctrl_pdata, dfpks);
+		break;
+	case FPS_TYPE_HYBRID_INCELL:
 		ret = mdss_dsi_panel_driver_fps_calc_porch(ctrl_pdata, dfpks);
-	else if (spec_pdata->panel_type == FULL_INCELL)
+		break;
+	case FPS_TYPE_FULL_INCELL:
 		ret = mdss_dsi_panel_driver_fps_calc_rtn(ctrl_pdata, dfpks);
-	else
+		break;
+	default:
 		pr_err("%s: Invalid type data\n", __func__);
+		break;
+	}
 
 	return ret;
 }
@@ -2067,11 +2398,6 @@ static int mdss_dsi_panel_chg_fps_check_state
 	if (!mdp5_data->ctl || !mdp5_data->ctl->power_state)
 		goto error;
 
-	if (dfpks == ctrl->spec_pdata->input_fpks) {
-		pr_notice("%s: fpks is already %d\n", __func__, dfpks);
-		goto end;
-	}
-
 	if ((pinfo->mipi.mode == DSI_CMD_MODE) &&
 			(!ctrl->spec_pdata->fps_cmds.cmd_cnt))
 		goto cmd_cnt_err;
@@ -2082,13 +2408,6 @@ static int mdss_dsi_panel_chg_fps_check_state
 	if (mdss_dsi_sync_wait_enable(ctrl)) {
 		sctrl = mdss_dsi_get_other_ctrl(ctrl);
 		if (sctrl) {
-			if ((pinfo->mipi.mode == DSI_CMD_MODE) &&
-				(!sctrl->spec_pdata->fps_cmds.cmd_cnt))
-				goto cmd_cnt_err;
-
-			if (!display_onoff_state)
-				goto disp_onoff_state_err;
-
 			if (mdss_dsi_sync_wait_trigger(ctrl)) {
 				rc = mdss_dsi_panel_chg_fps_calc(sctrl, dfpks);
 				if (rc < 0)
@@ -2124,6 +2443,16 @@ ssize_t mdss_dsi_panel_driver_change_fpks_store(struct device *dev,
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
 	int dfpks, rc;
 
+	if (!ctrl_pdata || !ctrl_pdata->spec_pdata) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!ctrl_pdata->spec_pdata->chg_fps.enable) {
+		pr_err("%s: change fps not enabled\n", __func__);
+		return -EINVAL;
+	}
+
 	rc = kstrtoint(buf, 10, &dfpks);
 	if (rc < 0) {
 		pr_err("%s: Error, buf = %s\n", __func__, buf);
@@ -2135,6 +2464,11 @@ ssize_t mdss_dsi_panel_driver_change_fpks_store(struct device *dev,
 		pr_err("%s: invalid value for change_fpks buf = %s\n",
 				 __func__, buf);
 		return -EINVAL;
+	}
+
+	if (dfpks == ctrl_pdata->spec_pdata->input_fpks) {
+		pr_notice("%s: fpks is already %d\n", __func__, dfpks);
+		return count;
 	}
 
 	rc = mdss_dsi_panel_chg_fps_check_state(ctrl_pdata, dfpks);
@@ -2166,6 +2500,16 @@ ssize_t mdss_dsi_panel_driver_change_fps_store(struct device *dev,
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = dev_get_drvdata(dev);
 	int dfps, dfpks, rc;
 
+	if (!ctrl_pdata || !ctrl_pdata->spec_pdata) {
+		pr_err("%s: Invalid input data\n", __func__);
+		return -EINVAL;
+	}
+
+	if (!ctrl_pdata->spec_pdata->chg_fps.enable) {
+		pr_err("%s: change fps not enabled\n", __func__);
+		return -EINVAL;
+	}
+
 	rc = kstrtoint(buf, 10, &dfps);
 	if (rc < 0) {
 		pr_err("%s: Error, buf = %s\n", __func__, buf);
@@ -2181,6 +2525,11 @@ ssize_t mdss_dsi_panel_driver_change_fps_store(struct device *dev,
 		pr_err("%s: invalid value for change_fps buf = %s\n",
 				__func__, buf);
 		return -EINVAL;
+	}
+
+	if (dfpks == ctrl_pdata->spec_pdata->input_fpks) {
+		pr_notice("%s: fpks is already %d\n", __func__, dfpks);
+		return count;
 	}
 
 	rc = mdss_dsi_panel_chg_fps_check_state(ctrl_pdata, dfpks);
@@ -2206,8 +2555,9 @@ ssize_t mdss_dsi_panel_driver_change_fps_show(struct device *dev,
 		ctrl_pdata->spec_pdata->input_fpks / 1000);
 }
 
-void mdss_dsi_panel_driver_check_splash_enable
-		(struct mdss_dsi_ctrl_pdata *ctrl_pdata) {
+void mdss_dsi_panel_driver_check_splash_enable(
+		struct mdss_dsi_ctrl_pdata *ctrl_pdata)
+{
 	if (ctrl_pdata->panel_data.panel_info.cont_splash_enabled)
 		display_onoff_state = true;
 	else
@@ -2237,44 +2587,6 @@ static void mdss_dsi_panel_driver_chg_fps_cmds_send
 	}
 }
 
-void mdss_dsi_panel_driver_wait_before_post_on_cmds(
-			struct mdss_dsi_ctrl_pdata *ctrl_pdata) {
-	if (ctrl_pdata->spec_pdata->wait_time_before_post_on_cmd)
-		msleep(ctrl_pdata->spec_pdata->wait_time_before_post_on_cmd);
-}
-
-void mdss_dsi_panel_driver_post_on_event(struct mdss_mdp_ctl *ctl)
-{
-	int rc = 0;
-
-	rc = mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_POST_PANEL_ON, NULL,
-		false);
-	WARN(rc, "intf %d post panel on error (%d)\n",
-		ctl->intf_num, rc);
-
-	rc = mdss_mdp_tearcheck_enable(ctl, true);
-	WARN(rc, "intf %d tearcheck enable error (%d)\n",
-		ctl->intf_num, rc);
-}
-
-bool mdss_dsi_panel_driver_check_disp_on_in_hs(struct mdss_mdp_ctl *ctl)
-{
-	struct mdss_panel_specific_pdata *spec_pdata = NULL;
-	bool res = false;
-
-	spec_pdata = mdss_panel2spec_pdata(ctl->panel_data);
-	if (spec_pdata) {
-		if (spec_pdata->disp_on_in_hs)
-			res = true;
-		else
-			mdss_dsi_panel_driver_post_on_event(ctl);
-	} else {
-		mdss_dsi_panel_driver_post_on_event(ctl);
-	}
-
-	return res;
-}
-
 void mdss_dsi_panel_driver_fb_notifier_call_chain(
 		struct msm_fb_data_type *mfd, int blank, bool type)
 {
@@ -2286,11 +2598,12 @@ void mdss_dsi_panel_driver_fb_notifier_call_chain(
 			event.info = mfd->fbi;
 			event.data = &blank;
 
-			if (type == FB_NOTIFIER_PRE) {
-				fb_notifier_call_chain(FB_EXT_EARLY_EVENT_BLANK, &event);
-			} else {
-				fb_notifier_call_chain(FB_EXT_EVENT_BLANK, &event);
-			}
+			if (type == FB_NOTIFIER_PRE)
+				fb_notifier_call_chain(
+					FB_EXT_EARLY_EVENT_BLANK, &event);
+			else
+				fb_notifier_call_chain(
+					FB_EXT_EVENT_BLANK, &event);
 		}
 	}
 }
@@ -2298,7 +2611,6 @@ void mdss_dsi_panel_driver_fb_notifier_call_chain(
 void mdss_dsi_panel_driver_labibb_vreg_init(
 		struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
-	bool cont_splash_enabled = false;
 	int ret;
 	int min_uV, max_uV = 0;
 	struct mdss_panel_info *pinfo = NULL;
@@ -2309,13 +2621,6 @@ void mdss_dsi_panel_driver_labibb_vreg_init(
 	pinfo = &ctrl_pdata->panel_data.panel_info;
 	if (!pinfo) {
 		pr_err("%s: Invalid panel data\n", __func__);
-		return;
-	}
-
-	cont_splash_enabled = ctrl_pdata->mdss_util->panel_intf_status(
-					pinfo->pdest, MDSS_PANEL_INTF_DSI);
-	if (cont_splash_enabled) {
-		pr_notice("%s: lab/ibb vreg already initialized\n", __func__);
 		return;
 	}
 
@@ -2330,6 +2635,7 @@ void mdss_dsi_panel_driver_labibb_vreg_init(
 		pr_err("%s: Invalid regulator settings\n", __func__);
 		return;
 	}
+
 
 	/*
 	 * Get lab/ibb info.
@@ -2351,6 +2657,7 @@ void mdss_dsi_panel_driver_labibb_vreg_init(
 	/*
 	 * Set lab/ibb voltage.
 	 */
+
 	if (((labibb->labibb_ctrl_state) & OVR_LAB_VOLTAGE)) {
 		min_uV = labibb->lab_output_voltage;
 		max_uV = min_uV;
@@ -2442,6 +2749,9 @@ void mdss_dsi_panel_driver_labibb_vreg_init(
 void mdss_dsi_panel_driver_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
 	ctrl_pdata->spec_pdata->pcc_setup = mdss_dsi_panel_pcc_setup;
+	ctrl_pdata->spec_pdata->color_mode = CLR_MODE_SELECT_DCIP3;
+	ctrl_pdata->spec_pdata->esd_enable_without_xlog
+				= ESD_WITHOUT_XLOG_DISABLE_VALUE;
 	mdss_dsi_panel_driver_fps_data_init(FPSD);
 	mdss_dsi_panel_driver_fps_data_init(VPSD);
 	mdss_dsi_panel_driver_vsync_handler_init();
@@ -2452,7 +2762,8 @@ void mdss_dsi_panel_driver_off(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
 	struct mdss_mdp_ctl *ctl = mdata->ctl_off;
 
-	ctrl_pdata->spec_pdata->black_screen_off(ctrl_pdata);
+	if (ctrl_pdata->spec_pdata->black_screen_off)
+		ctrl_pdata->spec_pdata->black_screen_off(ctrl_pdata);
 
 	vs_handle.vsync_handler = (mdp_vsync_handler_t)vsync_handler;
 	vs_handle.cmd_post_flush = false;
@@ -2468,7 +2779,27 @@ void mdss_dsi_panel_driver_off(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 
 void mdss_dsi_panel_driver_post_on(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 {
-	mdss_dsi_panel_driver_chg_fps_cmds_send(ctrl_pdata);
+	struct mdss_panel_specific_pdata *spec_pdata = NULL;
+	struct mdss_panel_data *pdata;
+
+	spec_pdata = ctrl_pdata->spec_pdata;
+	pdata = &(ctrl_pdata->panel_data);
+
+	if (!pdata)
+		return;
+
+	if (pdata->panel_info.pdest != DISPLAY_1)
+		return;
+
+	if (spec_pdata->chg_fps.enable) {
+		if (spec_pdata->chg_fps.mode == FPS_MODE_SUSRES)
+			mdss_dsi_panel_chg_fps_calc(ctrl_pdata,
+						spec_pdata->input_fpks);
+
+		mdss_dsi_panel_driver_chg_fps_cmds_send(ctrl_pdata);
+	} else {
+		pr_notice("%s: change fps is not supported.\n", __func__);
+	}
 
 	display_onoff_state = true;
 }
@@ -2479,4 +2810,24 @@ void mdss_dsi_panel_driver_unblank(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 		ctrl_pdata->spec_pdata->pcc_setup(&ctrl_pdata->panel_data);
 		ctrl_pdata->spec_pdata->pcc_data.pcc_sts &= ~PCC_STS_UD;
 	}
+}
+
+void mdss_dsi_panel_driver_dump_incell_sts(struct incell_ctrl *incell)
+{
+	int num;
+
+	pr_err("%s: sts current:0x%x\n", __func__, (int)(incell->state));
+	for (num = 0 ; num < INCELL_BACKUP_NUM ; num++)
+		pr_err("%s: back ups %d :0x%x\n", __func__,
+				num, (int)(incell->backups[num]));
+}
+
+void mdss_dsi_panel_driver_update_incell_bk(struct incell_ctrl *incell)
+{
+	int num;
+
+	for (num = INCELL_BACKUP_NUM - 1 ; num > 0 ; num--)
+		incell->backups[num] = incell->backups[num - 1];
+
+	incell->backups[0] = incell->state;
 }

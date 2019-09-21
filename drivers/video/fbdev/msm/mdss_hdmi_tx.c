@@ -12,7 +12,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -848,7 +848,7 @@ static ssize_t hdmi_tx_sysfs_wta_hpd(struct device *dev,
 
 	mutex_lock(&hdmi_ctrl->tx_lock);
 
-	/* Force HDP to be low */
+	/* Force HPD to be low */
 	/*rc = kstrtoint(buf, 10, &hpd);*/
 	rc = kstrtoint("0", 10, &hpd);
 	if (rc) {
@@ -1593,8 +1593,7 @@ static void hdmi_tx_hdcp_cb(void *ptr, enum hdcp_states status)
 
 	hdmi_ctrl->hdcp_status = status;
 
-	queue_delayed_work(hdmi_ctrl->workq, &hdmi_ctrl->hdcp_cb_work,
-						msecs_to_jiffies(250));
+	queue_delayed_work(hdmi_ctrl->workq, &hdmi_ctrl->hdcp_cb_work, HZ/4);
 }
 
 static inline bool hdmi_tx_is_stream_shareable(struct hdmi_tx_ctrl *hdmi_ctrl)
@@ -4187,7 +4186,7 @@ static int hdmi_tx_post_evt_handle_resume(struct hdmi_tx_ctrl *hdmi_ctrl)
 
 		reinit_completion(&hdmi_ctrl->hpd_int_done);
 		timeout = wait_for_completion_timeout(
-			&hdmi_ctrl->hpd_int_done, msecs_to_jiffies(100));
+			&hdmi_ctrl->hpd_int_done, HZ/10);
 		if (!timeout) {
 			pr_debug("cable removed during suspend\n");
 			hdmi_tx_send_audio_notification(hdmi_ctrl, 0);

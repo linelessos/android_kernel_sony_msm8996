@@ -12,7 +12,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2017 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -27,10 +27,6 @@
 #include <linux/msm-bus.h>
 #include <linux/msm-bus-board.h>
 #include "mdss_mdp_pp_cache_config.h"
-
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-#include "mdss_dsi_panel_driver.h"
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 struct mdp_csc_cfg mdp_csc_8bit_convert[MDSS_MDP_MAX_CSC] = {
 	[MDSS_MDP_CSC_YUV2RGB_601L] = {
@@ -357,7 +353,7 @@ static struct mdss_mdp_format_params dest_scaler_fmt = {
 #define HIST_INTR_DSPP_MASK		0xFFF000
 #define HIST_V2_INTR_BIT_MASK		0xF33000
 #define HIST_V1_INTR_BIT_MASK		0X333333
-#define HIST_WAIT_TIMEOUT(frame) ((75 * msecs_to_jiffies(1000) * (frame)) / 1000)
+#define HIST_WAIT_TIMEOUT(frame) ((75 * HZ * (frame)) / 1000)
 #define HIST_KICKOFF_WAIT_FRACTION 4
 
 /* hist collect state */
@@ -2206,9 +2202,7 @@ static int pp_hist_setup(u32 *op, u32 block, struct mdss_mdp_mixer *mix,
 		goto error;
 	}
 
-	if (!mutex_is_locked(&hist_info->hist_mutex))
-		mutex_lock(&hist_info->hist_mutex);
-
+	mutex_lock(&hist_info->hist_mutex);
 	spin_lock_irqsave(&hist_info->hist_lock, flag);
 	/*
 	 * Set histogram interrupt if histogram collection is enabled. The
@@ -2512,9 +2506,6 @@ static int pp_dspp_setup(u32 disp_num, struct mdss_mdp_mixer *mixer,
 
 	if ((flags & PP_FLAGS_DIRTY_DITHER) &&
 		(pp_program_mask & PP_PROGRAM_DITHER)) {
-#ifdef CONFIG_ARCH_MSM8916
-		addr = base + MDSS_MDP_REG_DSPP_DITHER_DEPTH;
-#endif
 		if (!pp_ops[DITHER].pp_set_config && addr) {
 			pp_dither_config(addr, pp_sts,
 				&mdss_pp_res->dither_disp_cfg[disp_num]);
@@ -2768,7 +2759,7 @@ int mdss_mdp_pp_setup_locked(struct mdss_mdp_ctl *ctl,
 	struct mdss_data_type *mdata;
 	int ret = 0, i;
 	u32 flags, pa_v2_flags;
-	u32 max_bw_needed = 0;
+	u32 max_bw_needed;
 	u32 mixer_cnt;
 	u32 mixer_id[MDSS_MDP_INTF_MAX_LAYERMIXER];
 	u32 disp_num;
@@ -3846,15 +3837,9 @@ static void pp_update_pcc_regs(char __iomem *addr,
 	writel_relaxed(cfg_ptr->b.rgb_1, addr + 8);
 }
 
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-int mdss_mdp_pcc_config(struct msm_fb_data_type *mfd,
-				struct mdp_pcc_cfg_data *config,
-				u32 *copyback, u32 copy_from_kernel)
-#else
 int mdss_mdp_pcc_config(struct msm_fb_data_type *mfd,
 				struct mdp_pcc_cfg_data *config,
 				u32 *copyback)
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 {
 	int ret = 0;
 	u32 disp_num, dspp_num = 0;
@@ -3902,14 +3887,8 @@ int mdss_mdp_pcc_config(struct msm_fb_data_type *mfd,
 				goto pcc_clk_off;
 			}
 			addr += mdata->pp_block_off.dspp_pcc_off;
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-			if (copy_from_kernel)
-				ret = __pp_pcc_get_config(addr, config,
-							  DSPP, disp_num);
-			else
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
-				ret = pp_ops[PCC].pp_get_config(addr, config,
-								DSPP, disp_num);
+			ret = pp_ops[PCC].pp_get_config(addr, config,
+					DSPP, disp_num);
 			if (ret)
 				pr_err("pcc get config failed %d\n", ret);
 			goto pcc_clk_off;
@@ -3927,12 +3906,7 @@ pcc_clk_off:
 			res_cache.block = DSPP;
 			res_cache.mdss_pp_res = mdss_pp_res;
 			res_cache.pipe_res = NULL;
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-			ret = pp_pcc_cache_params(config, &res_cache, copy_from_kernel);
-#else
 			ret = pp_pcc_cache_params(config, &res_cache);
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
-
 			if (ret) {
 				pr_err("pcc config failed version %d ret %d\n",
 					config->version, ret);
@@ -6696,7 +6670,12 @@ static void pp_ad_calc_worker(struct work_struct *work)
 	sysfs_notify_dirent(mdp5_data->ad_event_sd);
 	if (!ad->calc_itr) {
 		ad->state &= ~PP_AD_STATE_VSYNC;
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+		if (ctl->ops.remove_vsync_handler)
+			ctl->ops.remove_vsync_handler(ctl, &ad->handle);
+#else
 		ctl->ops.remove_vsync_handler(ctl, &ad->handle);
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	}
 	mutex_unlock(&ad->lock);
 
@@ -7316,9 +7295,6 @@ int mdss_mdp_pp_sspp_config(struct mdss_mdp_pipe *pipe)
 	struct mdp_pp_cache_res cache_res;
 	u32 len = 0;
 	int ret = 0;
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	u32 copy_from_kernel = 0;
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 	if (!pipe) {
 		pr_err("invalid params, pipe %pK\n", pipe);
@@ -7419,13 +7395,8 @@ int mdss_mdp_pp_sspp_config(struct mdss_mdp_pipe *pipe)
 	}
 	if (pipe->pp_cfg.config_ops & MDP_OVERLAY_PP_PCC_CFG
 	    && pp_ops[PCC].pp_set_config) {
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		ret = pp_pcc_cache_params(&pipe->pp_cfg.pcc_cfg_data,
-					  &cache_res, copy_from_kernel);
-#else
 		ret = pp_pcc_cache_params(&pipe->pp_cfg.pcc_cfg_data,
 					  &cache_res);
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 		if (ret) {
 			pr_err("failed to cache the pcc params ret %d\n", ret);
 			goto exit_fail;

@@ -12,7 +12,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -527,6 +527,9 @@ struct mipi_panel_info {
 	char dma_trigger;
 	/* Dynamic Switch Support */
 	enum dynamic_mode_switch dms_mode;
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	bool switch_mode_pending;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 	u32 pixel_packing;
 	u32 dsi_pclk_rate;
@@ -940,6 +943,7 @@ struct mdss_panel_info {
 
 	/* esc clk recommended for the panel */
 	u32 esc_clk_rate_hz;
+
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 	const char *panel_id_name;
 	int dsi_master;

@@ -12,7 +12,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -41,7 +41,6 @@
 #include "mdss_dba_utils.h"
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 #include "mdss_dsi_panel_driver.h"
-#include "mdss_dsi_panel_debugfs.h"
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 #define CMDLINE_DSI_CTL_NUM_STRING_LEN 2
@@ -406,6 +405,7 @@ static int mdss_dsi_panel_power_off(struct mdss_panel_data *pdata)
 	if (ret)
 		pr_err("%s: failed to disable vregs for %s\n",
 			__func__, __mdss_dsi_pm_name(DSI_PANEL_PM));
+
 end:
 	return ret;
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
@@ -1584,13 +1584,12 @@ int mdss_dsi_on(struct mdss_panel_data *pdata)
 	 */
 	if (mipi->lp11_init) {
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		if ((!incell) || (incell->seq == POWER_ON_EXECUTE)) {
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
+		if ((!incell) || (incell->seq == POWER_ON_EXECUTE))
+			mdss_dsi_panel_driver_reset_dual_display(ctrl_pdata);
+#else
 		if (mdss_dsi_pinctrl_set_state(ctrl_pdata, true))
 			pr_debug("reset enable: pinctrl not enabled\n");
 		mdss_dsi_panel_reset(pdata, 1);
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		}
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	}
 
@@ -1742,7 +1741,7 @@ static int mdss_dsi_unblank(struct mdss_panel_data *pdata)
 	ctrl_pdata->ctrl_state |= CTRL_STATE_PANEL_INIT;
 
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		mdss_dsi_panel_driver_unblank(ctrl_pdata);
+	mdss_dsi_panel_driver_unblank(ctrl_pdata);
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 error:
@@ -2676,7 +2675,7 @@ static void mdss_dsi_dba_work(struct work_struct *work)
 	} else {
 		pr_debug("%s: dba device not ready, queue again\n", __func__);
 		queue_delayed_work(ctrl_pdata->workq,
-				&ctrl_pdata->dba_work, msecs_to_jiffies(1000));
+				&ctrl_pdata->dba_work, HZ);
 	}
 }
 
@@ -3132,7 +3131,7 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 		if (IS_ENABLED(CONFIG_MSM_DBA) &&
 			pdata->panel_info.is_dba_panel) {
 				queue_delayed_work(ctrl_pdata->workq,
-					&ctrl_pdata->dba_work, msecs_to_jiffies(1000));
+					&ctrl_pdata->dba_work, HZ);
 		}
 		break;
 	case MDSS_EVENT_DSI_TIMING_DB_CTRL:
@@ -3221,13 +3220,18 @@ static struct device_node *mdss_dsi_find_panel_of_node(
 	char panel_name[MDSS_MAX_PANEL_LEN] = "";
 	char ctrl_id_stream[3] =  "0:";
 	char *str1 = NULL, *str2 = NULL, *override_cfg = NULL;
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 	char cfg_np_name[MDSS_MAX_PANEL_LEN] = "";
 	struct device_node *dsi_pan_node = NULL, *mdss_node = NULL;
+#else
+	struct device_node *dsi_pan_node = NULL;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = platform_get_drvdata(pdev);
 	struct mdss_panel_info *pinfo = &ctrl_pdata->panel_data.panel_info;
 
 	len = strlen(panel_cfg);
 	ctrl_pdata->panel_data.dsc_cfg_np_name[0] = '\0';
+	len = 0; /* temporary */
 	if (!len) {
 		/* no panel cfg chg, parse dt */
 		pr_debug("%s:%d: no cmd line cfg present\n",
@@ -3315,7 +3319,6 @@ static struct device_node *mdss_dsi_find_panel_of_node(
 					cfg_np_name, MDSS_MAX_PANEL_LEN);
 			}
 		}
-
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 		mdss_dsi_panel_driver_detection(pdev, &dsi_pan_node);
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
@@ -3397,8 +3400,6 @@ static int mdss_dsi_ctrl_clock_init(struct platform_device *ctrl_pdev,
 	info.core_clks.axi_clk = ctrl_pdata->shared_data->axi_clk;
 	info.core_clks.mmss_misc_ahb_clk =
 		ctrl_pdata->shared_data->mmss_misc_ahb_clk;
-	info.core_clks.tbu_clk = ctrl_pdata->shared_data->tbu_clk;
-	info.core_clks.tbu_rt_clk = ctrl_pdata->shared_data->tbu_rt_clk;
 
 	info.link_clks.esc_clk = ctrl_pdata->esc_clk;
 	info.link_clks.byte_clk = ctrl_pdata->byte_clk;
@@ -3878,12 +3879,12 @@ static void mdss_dsi_res_deinit(struct platform_device *pdev)
 				if (pinfo)
 					mdss_dba_utils_deinit(pinfo->dba_data);
 			}
-
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 			devm_kfree(&pdev->dev,
 					dsi_res->ctrl_pdata[i]->spec_pdata);
 		if (dsi_res->ctrl_pdata[i])
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
+
 			devm_kfree(&pdev->dev, dsi_res->ctrl_pdata[i]);
 		}
 	}
@@ -4649,7 +4650,6 @@ static int mdss_dsi_parse_gpio_params(struct platform_device *ctrl_pdev,
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 	mdss_dsi_panel_driver_parse_gpio_params(ctrl_pdev, ctrl_pdata);
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
-
 	return 0;
 }
 

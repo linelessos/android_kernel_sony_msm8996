@@ -15,7 +15,7 @@
  */
 /*
  * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
  * and licensed under the license of the file.
  */
 
@@ -62,9 +62,9 @@
 #include "mdss_mdp.h"
 
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+#include <linux/regulator/qpnp-labibb-regulator.h>
 #include "mdss_dsi_panel_driver.h"
 #include "mdss_dsi_panel_debugfs.h"
-#include "mdss_dsi_panel_driver.h"
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 #ifdef CONFIG_FB_MSM_TRIPLE_BUFFER
@@ -192,13 +192,10 @@ void mdss_fb_bl_update_notify(struct msm_fb_data_type *mfd,
 	mutex_unlock(&mfd->no_update.lock);
 	mdp5_data = mfd_to_mdp5_data(mfd);
 	if (mdp5_data) {
-#ifndef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 		if (notification_type == NOTIFY_TYPE_BL_AD_ATTEN_UPDATE) {
 			mdp5_data->ad_bl_events++;
 			sysfs_notify_dirent(mdp5_data->ad_bl_event_sd);
-		} else
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
-		if (notification_type == NOTIFY_TYPE_BL_UPDATE) {
+		} else if (notification_type == NOTIFY_TYPE_BL_UPDATE) {
 			mdp5_data->bl_events++;
 			sysfs_notify_dirent(mdp5_data->bl_event_sd);
 		}
@@ -1368,6 +1365,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	int rc;
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 	struct incell_ctrl *incell = NULL;
+	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 	if (fbi_list_index >= MAX_FBI_LIST)
@@ -1376,6 +1374,11 @@ static int mdss_fb_probe(struct platform_device *pdev)
 	pdata = dev_get_platdata(&pdev->dev);
 	if (!pdata)
 		return -EPROBE_DEFER;
+
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
+				panel_data);
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 	if (!mdp_instance) {
 		pr_err("mdss mdp resource not initialized yet\n");
@@ -1525,12 +1528,12 @@ static int mdss_fb_probe(struct platform_device *pdev)
 			pr_err("failed to register input handler\n");
 
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	if (mfd->index)
+		goto skip;
+
 	if ((mfd->panel_info->type == MIPI_VIDEO_PANEL) ||
 		(mfd->panel_info->type == MIPI_CMD_PANEL))
 		mdss_dsi_create_debugfs(mfd);
-
-	if (mfd->index)
-		goto skip;
 
 	incell_driver_init();
 	incell = incell_get_info();
@@ -1541,6 +1544,7 @@ static int mdss_fb_probe(struct platform_device *pdev)
 			(incell->state), (int)(incell->incell_intf_operation));
 
 	}
+
 skip:
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
@@ -1749,7 +1753,7 @@ static int mdss_fb_resume_sub(struct msm_fb_data_type *mfd)
 #ifdef SOMC_FEATURE_EARLY_UNBLANK
 	if (mfd->unblank_kworker && pwr_pressed &&
 	    !mdss_panel_is_power_on_ulp(mfd->suspend.panel_power_state)) {
-		pr_debug("starting unblank async from resume");
+		pr_notice("starting unblank async from resume");
 		queue_work(mfd->unblank_kworker, &mfd->unblank_work);
 	} else if (mdss_panel_is_power_on(mfd->suspend.panel_power_state) &&
 		!mdss_panel_is_power_on_ulp(mfd->suspend.panel_power_state)) {
@@ -2065,7 +2069,11 @@ static int mdss_fb_blank_blank(struct msm_fb_data_type *mfd,
 		req_power_state);
 
 	if (cur_power_state == req_power_state) {
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+		pr_notice("%s: No change in power state\n", __func__);
+#else
 		pr_debug("No change in power state\n");
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 		return 0;
 	}
 
@@ -2127,7 +2135,11 @@ static int mdss_fb_blank_unblank(struct msm_fb_data_type *mfd)
 		MDSS_PANEL_POWER_ON);
 
 	if (mdss_panel_is_power_on_interactive(cur_power_state)) {
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+		pr_notice("%s: No change in power state\n", __func__);
+#else
 		pr_debug("No change in power state\n");
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 		return 0;
 	}
 
@@ -2309,15 +2321,9 @@ static void mdss_background_unblank(struct work_struct *ws)
 {
 	int ret;
 	struct msm_fb_data_type *mfd;
-
 	mfd = container_of(ws, struct msm_fb_data_type, unblank_work);
 
-	pr_debug("unblank work running");
-
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	mdss_dsi_panel_driver_fb_notifier_call_chain(mfd,
-			FB_BLANK_UNBLANK, FB_NOTIFIER_PRE);
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
+	pr_notice("unblank work running");
 
 	ret = mdss_fb_blank_sub(FB_EARLY_UNBLANK, mfd->fbi,
 				mfd->op_enable);
@@ -2325,10 +2331,6 @@ static void mdss_background_unblank(struct work_struct *ws)
 	if (ret) {
 		pr_warn("can't turn on display!\n");
 	} else {
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		mdss_dsi_panel_driver_fb_notifier_call_chain(mfd,
-				FB_BLANK_UNBLANK, FB_NOTIFIER_POST);
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 		mdss_fb_update_early_unblank_completed(mfd, true);
 		fb_set_suspend(mfd->fbi, FBINFO_STATE_RUNNING);
 	}
@@ -2945,14 +2947,6 @@ static int mdss_fb_register(struct msm_fb_data_type *mfd)
 	var->xres_virtual = var->xres;
 	var->yres_virtual = panel_info->yres * mfd->fb_page;
 	var->bits_per_pixel = bpp * 8;	/* FrameBuffer color depth */
-
-	/*
-	 * Store the cont splash state in the var reserved[3] field.
-	 * The continuous splash is considered to be active if either
-	 * splash_enabled is set or if splash pipe has been allocated.
-	 */
-	var->reserved[3] = panel_info->cont_splash_enabled |
-				mfd->splash_info.splash_pipe_allocated;
 
 	/*
 	 * Populate smem length here for uspace to get the
@@ -5264,6 +5258,15 @@ static int __ioctl_wait_idle(struct msm_fb_data_type *mfd, u32 cmd)
 	return ret;
 }
 
+static bool check_not_supported_ioctl(u32 cmd)
+{
+	return((cmd == MSMFB_OVERLAY_SET) || (cmd == MSMFB_OVERLAY_UNSET) ||
+		(cmd == MSMFB_OVERLAY_GET) || (cmd == MSMFB_OVERLAY_PREPARE) ||
+		(cmd == MSMFB_DISPLAY_COMMIT) || (cmd == MSMFB_OVERLAY_PLAY) ||
+		(cmd == MSMFB_BUFFER_SYNC) || (cmd == MSMFB_OVERLAY_QUEUE) ||
+		(cmd == MSMFB_NOTIFY_UPDATE));
+}
+
 /*
  * mdss_fb_do_ioctl() - MDSS Framebuffer ioctl function
  * @info:	pointer to framebuffer info
@@ -5302,6 +5305,11 @@ int mdss_fb_do_ioctl(struct fb_info *info, unsigned int cmd,
 	pdata = dev_get_platdata(&mfd->pdev->dev);
 	if (!pdata || pdata->panel_info.dynamic_switch_pending)
 		return -EPERM;
+
+	if (check_not_supported_ioctl(cmd)) {
+		pr_err("Unsupported ioctl\n");
+		return -EINVAL;
+	}
 
 	atomic_inc(&mfd->ioctl_ref_cnt);
 
@@ -5569,11 +5577,21 @@ void mdss_fb_report_panel_dead(struct msm_fb_data_type *mfd)
 	char *envp[2] = {"PANEL_ALIVE=0", NULL};
 	struct mdss_panel_data *pdata =
 		dev_get_platdata(&mfd->pdev->dev);
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	int rc = 0;
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	if (!pdata) {
 		pr_err("Panel data not available\n");
 		return;
 	}
 
+#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
+	rc = qpnp_labibb_ocp_check();
+	if (rc) {
+		pr_notice("%s: ocp check error\n", __func__);
+		return;
+	}
+#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	pdata->panel_info.panel_dead = true;
 	kobject_uevent_env(&mfd->fbi->dev->kobj,
 		KOBJ_CHANGE, envp);

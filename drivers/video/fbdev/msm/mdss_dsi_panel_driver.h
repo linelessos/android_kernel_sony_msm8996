@@ -1,16 +1,12 @@
-/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* drivers/video/fbdev/msm/mdss_dsi_panel_driver.h
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
  */
 /*
- * Copyright (C) 2015 Sony Mobile Communications Inc.
+ * Copyright (C) 2016 Sony Mobile Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -41,9 +37,18 @@ enum {
 	CLR_DATA_UV_PARAM_TYPE_RENE_SR
 };
 
+/* color mode */
+#define CLR_MODE_SELECT_SRGB		(100)
+#define CLR_MODE_SELECT_DCIP3		(101)
+#define CLR_MODE_SELECT_PANELNATIVE	(102)
+
 /* fb_notifier call type */
 #define FB_NOTIFIER_PRE		((bool)true)
 #define FB_NOTIFIER_POST	((bool)false)
+
+/* esd */
+#define ESD_WITHOUT_XLOG_ENABLE_VALUE	(1)
+#define ESD_WITHOUT_XLOG_DISABLE_VALUE	(0)
 
 /* touch I/F data information for incell */
 /* touch I/F or not */
@@ -77,6 +82,8 @@ enum {
 #define INCELL_WORK_NEED_P_ON		INCELL_SYSTEM_STATE_ON
 #define INCELL_WORK_NEED_P_ON_EWU	(INCELL_SYSTEM_STATE_ON \
 				       | INCELL_EWU_STATE_ON)
+
+#define INCELL_BACKUP_NUM	10
 
 /* status to adjust power for incell panel or not */
 typedef enum {
@@ -114,6 +121,8 @@ typedef enum {
 /* control parameters for incell panel */
 struct incell_ctrl {
 	unsigned char state;
+	unsigned char backups[INCELL_BACKUP_NUM];
+
 	incell_state_change change_state;
 	incell_pw_seq seq;
 
@@ -130,11 +139,37 @@ struct incell_ctrl {
 #define HYBRID_INCELL ((bool)true)
 #define FULL_INCELL   ((bool)false)
 
+#define CHANGE_FPS_MIN 22
+#define CHANGE_FPS_MAX 60
+
+#define CHANGE_FPS_PORCH 2
+#define CHANGE_FPS_SEND 10
+
+#define PSEC ((u64)1000000000000)
+#define KSEC ((u64)1000)
+#define CHANGE_PAYLOAD(a, b) (spec_pdata->fps_cmds.cmds[a].payload[b])
+
 typedef enum {
 	FPS_PORCH_RNG_MIN = 0,
 	FPS_PORCH_RNG_MAX,
 	FPS_PORCH_RNG_NUM,
 } fps_porch_rng_index;
+
+typedef enum FPS_TYPE {
+	FPSD,
+	VPSD
+} fps_type;
+
+typedef enum FPS_PANEL_TYPE {
+	FPS_TYPE_UHD_4K,
+	FPS_TYPE_HYBRID_INCELL,
+	FPS_TYPE_FULL_INCELL,
+} fps_panel_type;
+
+typedef enum FPS_PANEL_MODE {
+	FPS_MODE_SUSRES,
+	FPS_MODE_DYNAMIC,
+} fps_panel_mode;
 
 struct fps_array {
 	u32 frame_nbr;
@@ -156,11 +191,6 @@ struct fps_data {
 	bool vps_en;
 };
 
-typedef enum FPS_TYPE {
-	FPSD,
-	VPSD
-} fps_type;
-
 struct change_fps_send_pos {
 	int num;
 	int *pos;
@@ -169,11 +199,19 @@ struct change_fps_send_pos {
 struct change_fps {
 	/* common */
 	bool enable;
-	bool susres_mode;
+	fps_panel_type type;
+	fps_panel_mode mode;
 	u32 dric_vdisp;
 	struct change_fps_send_pos send_pos;
+	u32 dric_rclk;
+	u32 dric_total_porch;
+	u8 chg_fps_type;
+	u8 chg_fps_mode;
 
-	/* hybred */
+	/* uhd_4k */
+	bool rtn_adj;
+
+	/* hybrid */
 	u32 dric_mclk;
 	u32 dric_vtouch;
 	u32 porch_range[FPS_PORCH_RNG_NUM];
@@ -183,9 +221,7 @@ struct change_fps {
 	char mask;
 
 	/* full */
-	u32 dric_rclk;
 	u32 dric_tp;
-	u32 dric_total_porch;
 };
 
 struct mdss_panel_power_seq {
@@ -197,6 +233,7 @@ struct mdss_panel_power_seq {
 	int disp_vddio;
 	int disp_vsp;
 	int disp_vsn;
+	int disp_dcdc;
 	int touch_avdd;
 	int touch_vddio;
 	int touch_reset;
@@ -263,15 +300,22 @@ struct mdss_panel_labibb_data {
 
 struct mdss_panel_specific_pdata {
 	int disp_vddio_gpio;
+	int disp_dcdc_en_gpio;
 	int touch_vddio_gpio;
 	int touch_reset_gpio;
 	int touch_int_gpio;
 
+	int color_mode;
 	bool pcc_enable;
+	bool srgb_pcc_enable;
+	bool vivid_pcc_enable;
+	bool hdr_pcc_enable;
 	struct dsi_panel_cmds pre_uv_read_cmds;
 	struct dsi_panel_cmds uv_read_cmds;
 	struct mdss_pcc_data pcc_data;
-	u32 rev_u[2], rev_v[2];
+	struct mdss_pcc_data srgb_pcc_data;
+	struct mdss_pcc_data vivid_pcc_data;
+	struct mdss_pcc_data hdr_pcc_data;
 
 	struct mdss_panel_power_seq on_seq;
 	struct mdss_panel_power_seq off_seq;
@@ -282,19 +326,19 @@ struct mdss_panel_specific_pdata {
 	struct mdss_panel_power_seq ewu_seq;
 
 	int (*pcc_setup)(struct mdss_panel_data *pdata);
+
+	int input_fpks;
+	struct change_fps chg_fps;
+	struct dsi_panel_cmds fps_cmds;
+
 	void (*crash_counter_reset)(void);
 	void (*blackscreen_det)(void);
 	void (*fff_time_update)(struct mdss_panel_specific_pdata *spec_pdata);
 	void (*black_screen_off)(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 	bool resume_started;
-
-	u32 disp_on_in_hs;
-	u32 wait_time_before_post_on_cmd;
-
 	bool panel_type;
-	struct change_fps chg_fps;
-	int input_fpks;
-	struct dsi_panel_cmds fps_cmds;
+
+	u32 esd_enable_without_xlog;
 };
 
 void mdss_dsi_panel_driver_init(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
@@ -331,26 +375,18 @@ int mdss_dsi_panel_driver_reset_panel(struct mdss_panel_data *pdata,
 		int enable);
 int mdss_dsi_panel_driver_reset_touch(struct mdss_panel_data *pdata,
 		int enable);
+int mdss_dsi_panel_driver_reset_dual_display(
+			struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 int mdss_dsi_panel_driver_parse_dt(struct device_node *np,
 		struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 int mdss_dsi_panel_pcc_setup(struct mdss_panel_data *pdata);
-void mdss_mdp_pcc_copy_to_v1_7(struct mdp_pcc_cfg_data *pcc_config,
-			       struct mdp_pcc_data_v1_7 *pcc_payload);
-void mdss_mdp_pcc_copy_from_v1_7(struct mdp_pcc_data_v1_7 *pcc_payload,
-				 struct mdp_pcc_cfg_data *pcc_config);
-int __pp_pcc_get_config(char __iomem *base_addr, void *cfg_data,
-			u32 block_type, u32 disp_num);
-void mdss_dsi_panel_driver_wait_before_post_on_cmds(
-			struct mdss_dsi_ctrl_pdata *ctrl_pdata);
-void mdss_dsi_panel_driver_post_on_event(struct mdss_mdp_ctl *ctl);
-bool mdss_dsi_panel_driver_check_disp_on_in_hs(struct mdss_mdp_ctl *ctl);
 void mdss_dsi_panel_driver_fb_notifier_call_chain(
 		struct msm_fb_data_type *mfd, int blank, bool type);
 void mdss_dsi_panel_driver_check_splash_enable(
 		struct mdss_dsi_ctrl_pdata *ctrl_pdata);
+void mdss_dsi_panel_driver_unblank(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 void mdss_dsi_panel_driver_labibb_vreg_init(
 		struct mdss_dsi_ctrl_pdata *ctrl_pdata);
-void mdss_dsi_panel_driver_unblank(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 
 /* For incell driver */
 struct incell_ctrl *incell_get_info(void);
@@ -366,16 +402,17 @@ void mdss_dsi_panel_driver_state_change_on(struct incell_ctrl *incell);
 void mdss_dsi_panel_driver_power_on_ctrl(struct incell_ctrl *incell);
 struct mdss_panel_specific_pdata *mdss_panel2spec_pdata(
 	struct mdss_panel_data *pdata);
+void mdss_dsi_panel_driver_dump_incell_sts(struct incell_ctrl *incell);
+void mdss_dsi_panel_driver_update_incell_bk(struct incell_ctrl *incell);
 
 /* Qualcomm original function */
 int mdss_dsi_pinctrl_set_state(struct mdss_dsi_ctrl_pdata *ctrl_pdata,
 		bool active);
 int mdss_dsi_request_gpios(struct mdss_dsi_ctrl_pdata *ctrl_pdata);
 int mdss_dsi_parse_dcs_cmds(struct device_node *np,
-			    struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
+		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key);
 void mdss_dsi_panel_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 			      struct dsi_panel_cmds *pcmds, u32 flags);
-int mdss_mdp_tearcheck_enable(struct mdss_mdp_ctl *ctl, bool enable);
 
 static inline struct mdss_dsi_ctrl_pdata *mdss_dsi_get_master_ctrl(
 					struct mdss_panel_data *pdata)

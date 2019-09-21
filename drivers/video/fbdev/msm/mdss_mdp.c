@@ -13,6 +13,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+/*
+ * NOTE: This file has been modified by Sony Mobile Communications Inc.
+ * Modifications are Copyright (c) 2016 Sony Mobile Communications Inc,
+ * and licensed under the license of the file.
+ */
 
 #define pr_fmt(fmt)	"%s: " fmt, __func__
 
@@ -1374,13 +1379,9 @@ static inline void __mdss_mdp_reg_access_clk_enable(
 		mdss_mdp_clk_update(MDSS_CLK_AXI, 1);
 		mdss_mdp_clk_update(MDSS_CLK_MDP_CORE, 1);
 		mdss_mdp_clk_update(MDSS_CLK_THROTTLE_AXI, 1);
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU, 1);
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU_RT, 1);
 	} else {
 		mdss_mdp_clk_update(MDSS_CLK_THROTTLE_AXI, 0);
 		mdss_mdp_clk_update(MDSS_CLK_MDP_CORE, 0);
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU_RT, 0);
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU, 0);
 		mdss_mdp_clk_update(MDSS_CLK_AXI, 0);
 		mdss_mdp_clk_update(MDSS_CLK_AHB, 0);
 		mdss_mdp_clk_update(MDSS_CLK_MNOC_AHB, 0);
@@ -1421,8 +1422,6 @@ static void __mdss_mdp_clk_control(struct mdss_data_type *mdata, bool enable)
 		mdss_mdp_clk_update(MDSS_CLK_AXI, 1);
 		mdss_mdp_clk_update(MDSS_CLK_MDP_CORE, 1);
 		mdss_mdp_clk_update(MDSS_CLK_MDP_LUT, 1);
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU, 1);
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU_RT, 1);
 		mdss_mdp_clk_update(MDSS_CLK_THROTTLE_AXI, 1);
 		if (mdata->vsync_ena)
 			mdss_mdp_clk_update(MDSS_CLK_MDP_VSYNC, 1);
@@ -1434,8 +1433,6 @@ static void __mdss_mdp_clk_control(struct mdss_data_type *mdata, bool enable)
 		if (mdata->vsync_ena)
 			mdss_mdp_clk_update(MDSS_CLK_MDP_VSYNC, 0);
 
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU_RT, 0);
-		mdss_mdp_clk_update(MDSS_CLK_MDP_TBU, 0);
 		mdss_mdp_clk_update(MDSS_CLK_MDP_LUT, 0);
 		mdss_mdp_clk_update(MDSS_CLK_MDP_CORE, 0);
 		mdss_mdp_clk_update(MDSS_CLK_AXI, 0);
@@ -1531,7 +1528,7 @@ int mdss_iommu_ctrl(int enable)
 		 * delay iommu attach until continous splash screen has
 		 * finished handoff, as it may still be working with phys addr
 		 */
-		if (mdata->iommu_ref_cnt == 0) {
+		if (!mdata->iommu_attached && !mdata->handoff_pending) {
 			mdss_bus_rt_bw_vote(true);
 			rc = mdss_smmu_attach(mdata);
 		}
@@ -1930,12 +1927,6 @@ static int mdss_mdp_irq_clk_setup(struct mdss_data_type *mdata)
 	    mdss_mdp_irq_clk_register(mdata, "iface_clk", MDSS_CLK_AHB) ||
 	    mdss_mdp_irq_clk_register(mdata, "core_clk", MDSS_CLK_MDP_CORE))
 		return -EINVAL;
-
-	/* tbu_clk is not present on all MDSS revisions */
-	mdss_mdp_irq_clk_register(mdata, "tbu_clk", MDSS_CLK_MDP_TBU);
-
-	/* tbu_rt_clk is not present on all MDSS revisions */
-	mdss_mdp_irq_clk_register(mdata, "tbu_rt_clk", MDSS_CLK_MDP_TBU_RT);
 
 	/* lut_clk is not present on all MDSS revisions */
 	mdss_mdp_irq_clk_register(mdata, "lut_clk", MDSS_CLK_MDP_LUT);
@@ -2607,6 +2598,7 @@ static int mdss_mdp_get_cmdline_config(struct platform_device *pdev)
 
 	len = strlen(mdss_mdp_panel);
 
+	len = 0; /* temporary */
 	if (len > 0) {
 		rc = mdss_mdp_get_pan_cfg(pan_cfg);
 		if (!rc) {
