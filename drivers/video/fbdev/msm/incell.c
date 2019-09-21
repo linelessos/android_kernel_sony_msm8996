@@ -1,17 +1,12 @@
-/*
- * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+/* drivers/video/fbdev/msm/incell.c
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 and
- * only version 2 as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * it under the terms of the GNU General Public License version 2, as
+ * published by the Free Software Foundation; either version 2
+ * of the License, or (at your option) any later version.
  */
 /*
- * Copyright (C) 2015 Sony Mobile Communications Inc.
+ * Copyright (C) 2016 Sony Mobile Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -31,9 +26,8 @@
 #include "mdss_mdp.h"
 #include "mdss_dsi.h"
 #include "mdss_dsi_panel_driver.h"
-#include "mdss_dsi_panel_debugfs.h"
 
-struct incell_ctrl *incell = NULL;
+struct incell_ctrl *incell;
 struct incell_ctrl incell_buf;
 
 struct incell_ctrl *incell_get_info(void)
@@ -595,6 +589,8 @@ int incell_power_lock_ctrl(incell_pw_lock lock,
 
 	pr_debug("%s: status:0x%x --->\n", __func__, (incell->state));
 
+	mdss_dsi_panel_driver_update_incell_bk(incell);
+
 	if (lock == INCELL_DISPLAY_POWER_LOCK)
 		ret = incell_power_lock(&(incell->state));
 	else
@@ -629,7 +625,9 @@ void incell_ewu_mode_ctrl(incell_ewu_mode ewu)
 
 	pr_debug("%s: status:0x%x --->\n", __func__, (incell->state));
 
-	if ((ewu == INCELL_DISPLAY_EWU_ENABLE))
+	mdss_dsi_panel_driver_update_incell_bk(incell);
+
+	if (ewu == INCELL_DISPLAY_EWU_ENABLE)
 		incell->state |= INCELL_EWU_STATE_ON;
 	else
 		incell->state &= INCELL_EWU_STATE_OFF;
