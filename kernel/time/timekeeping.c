@@ -7,11 +7,6 @@
  *  Please see that file for copyright and history logs.
  *
  */
-/*
- * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2015 Sony Mobile Communications Inc,
- * and licensed under the license of the file.
- */
 
 #include <linux/timekeeper_internal.h>
 #include <linux/module.h>
@@ -28,10 +23,6 @@
 #include <linux/stop_machine.h>
 #include <linux/pvclock_gtod.h>
 #include <linux/compiler.h>
-
-#ifdef CONFIG_RAMDUMP_TAGS
-#include <linux/rdtags.h>
-#endif
 
 #include "tick-internal.h"
 #include "ntp_internal.h"
@@ -935,18 +926,6 @@ time64_t ktime_get_real_seconds(void)
 	return seconds;
 }
 EXPORT_SYMBOL_GPL(ktime_get_real_seconds);
-
-#ifdef CONFIG_RAMDUMP_TAGS
-int timekeeping_ramdump_setup(void)
-{
-	int count = 0;
-
-	if (!rdtags_tag_symbol(tk_core))
-		count++;
-
-	return count;
-}
-#endif
 
 #ifdef CONFIG_NTP_PPS
 

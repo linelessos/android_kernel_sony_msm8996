@@ -10,11 +10,6 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-/*
- * NOTE: This file has been modified by Sony Mobile Communications Inc.
- * Modifications are Copyright (c) 2014 Sony Mobile Communications Inc,
- * and licensed under the license of the file.
- */
 
 #include <linux/init.h>
 #include <linux/module.h>
@@ -49,7 +44,7 @@
 
 #define subsys_to_drv(d) container_of(d, struct modem_data, subsys_desc)
 
-static void log_modem_sfr(struct modem_data *drv)
+static void log_modem_sfr(void)
 {
 	u32 size;
 	char *smem_reason, reason[MAX_SSR_REASON_LEN];
@@ -66,7 +61,6 @@ static void log_modem_sfr(struct modem_data *drv)
 	}
 
 	strlcpy(reason, smem_reason, min(size, MAX_SSR_REASON_LEN));
-	update_crash_reason(drv->subsys, smem_reason, size);
 	pr_err("modem subsystem failure reason: %s.\n", reason);
 
 	smem_reason[0] = '\0';
@@ -75,7 +69,7 @@ static void log_modem_sfr(struct modem_data *drv)
 
 static void restart_modem(struct modem_data *drv)
 {
-	log_modem_sfr(drv);
+	log_modem_sfr();
 	drv->ignore_errors = true;
 	subsystem_restart_dev(drv->subsys);
 }
