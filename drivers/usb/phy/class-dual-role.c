@@ -77,7 +77,7 @@ static void dual_role_changed_work(struct work_struct *work)
 			 changed_work);
 
 	dev_dbg(&dual_role->dev, "%s\n", __func__);
-#ifndef CONFIG_EXTCON_SOMC_EXTENSION /* WTF? */
+#if 0
 	sysfs_update_group(&dual_role->dev.kobj, &dual_role_attr_group);
 #endif
 	kobject_uevent(&dual_role->dev.kobj, KOBJ_CHANGE);
