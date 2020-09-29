@@ -126,50 +126,50 @@
 
 enum tcs3490_regs {
     TCS3490_CONTROL,
-    TCS3490_ALS_TIME,                  // 0x81
+    TCS3490_ALS_TIME,              // 0x81
     TCS3490_RESV_1,
-    TCS3490_WAIT_TIME,               // 0x83
-    TCS3490_ALS_MINTHRESHLO,   // 0x84
-    TCS3490_ALS_MINTHRESHHI,   // 0x85
-    TCS3490_ALS_MAXTHRESHLO,  // 0x86
-    TCS3490_ALS_MAXTHRESHHI,  // 0x87
-    TCS3490_RESV_2,                     // 0x88
-    TCS3490_PRX_MINTHRESHLO,  // 0x89 -> Not used for TCS3490 
+    TCS3490_WAIT_TIME,             // 0x83
+    TCS3490_ALS_MINTHRESHLO,       // 0x84
+    TCS3490_ALS_MINTHRESHHI,       // 0x85
+    TCS3490_ALS_MAXTHRESHLO,       // 0x86
+    TCS3490_ALS_MAXTHRESHHI,       // 0x87
+    TCS3490_RESV_2,                // 0x88
+    TCS3490_PRX_MINTHRESHLO,       // 0x89 -> Not used for TCS3490
 
-    TCS3490_RESV_3,                    // 0x8A 
-    TCS3490_PRX_MAXTHRESHHI, // 0x8B  -> Not used for TCS3490 
-    TCS3490_PERSISTENCE,          // 0x8C   
-    TCS3490_CONFIG,                    // 0x8D
-    TCS3490_PRX_PULSE_COUNT,  // 0x8E  -> Not used for TCS3490
-    TCS3490_GAIN,                        // 0x8F  : Gain Control Register  
-    TCS3490_AUX,                          // 0x90  
+    TCS3490_RESV_3,                // 0x8A
+    TCS3490_PRX_MAXTHRESHHI,       // 0x8B  -> Not used for TCS3490
+    TCS3490_PERSISTENCE,           // 0x8C
+    TCS3490_CONFIG,                // 0x8D
+    TCS3490_PRX_PULSE_COUNT,       // 0x8E  -> Not used for TCS3490
+    TCS3490_GAIN,                  // 0x8F  : Gain Control Register
+    TCS3490_AUX,                   // 0x90
     TCS3490_REVID,
     TCS3490_CHIPID,
-    TCS3490_STATUS,                    // 0x93
+    TCS3490_STATUS,                // 0x93
 
     TCS3490_CLR_CHANLO,            // 0x94
     TCS3490_CLR_CHANHI,            // 0x95
-    TCS3490_RED_CHANLO,           // 0x96
-    TCS3490_RED_CHANHI,           // 0x97
-    TCS3490_GRN_CHANLO,           // 0x98
-    TCS3490_GRN_CHANHI,           // 0x99 
-    TCS3490_BLU_CHANLO,           // 0x9A
-    TCS3490_BLU_CHANHI,           // 0x9B
-    TCS3490_PRX_HI,                    // 0x9C
-    TCS3490_PRX_LO,                    // 0x9D
+    TCS3490_RED_CHANLO,            // 0x96
+    TCS3490_RED_CHANHI,            // 0x97
+    TCS3490_GRN_CHANLO,            // 0x98
+    TCS3490_GRN_CHANHI,            // 0x99
+    TCS3490_BLU_CHANLO,            // 0x9A
+    TCS3490_BLU_CHANHI,            // 0x9B
+    TCS3490_PRX_HI,                // 0x9C
+    TCS3490_PRX_LO,                // 0x9D
 
     TCS3490_PRX_OFFSET,            // 0x9E
-    TCS3490_RESV_4,                    // 0x9F
-    TCS3490_IRBEAM_CFG,            // 0xA0  
-    TCS3490_IRBEAM_CARR,          // 0xA1   
-    TCS3490_IRBEAM_NS,              // 0xA2 
-    TCS3490_IRBEAM_ISD,            // 0xA3 
-    TCS3490_IRBEAM_NP,              // 0xA4
+    TCS3490_RESV_4,                // 0x9F
+    TCS3490_IRBEAM_CFG,            // 0xA0
+    TCS3490_IRBEAM_CARR,           // 0xA1
+    TCS3490_IRBEAM_NS,             // 0xA2
+    TCS3490_IRBEAM_ISD,            // 0xA3
+    TCS3490_IRBEAM_NP,             // 0xA4
     TCS3490_IRBEAM_IPD,            // 0xA5
     TCS3490_IRBEAM_DIV,            // 0xA6
-    TCS3490_IRBEAM_LEN,            // 0xA7 
+    TCS3490_IRBEAM_LEN,            // 0xA7
 
-    TCS3490_IRBEAM_STAT,         // 0xA8
+    TCS3490_IRBEAM_STAT,           // 0xA8
 
     TCS3490_REG_COLOR_BINLO=0x55,  // 0xD5
     TCS3490_REG_COLOR_BINHI=0x56,  // 0xD6
@@ -255,13 +255,12 @@ struct tcs3490_chip {
     bool als_enabled;
 	int als_thres_enabled;
 	int als_switch_ch_enabled;
-	int vio_enable;
 
     bool als_gain_auto;
 	u8 als_channel;
     u8 device_index;
 	struct regulator *vdd;
-	struct regulator *vio;
+	struct regulator *gpio_vdd;
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *gpio_state_active;
 	struct pinctrl_state *gpio_state_suspend;
@@ -724,7 +723,7 @@ static int tcs3490_check_and_report(struct tcs3490_chip *chip)
     mutex_unlock(&chip->lock);
 
     saturation = chip->als_inf.saturation;
-    
+
     if ((status & (TCS3490_ST_ALS_VALID | TCS3490_ST_ALS_IRQ)) ==
             (TCS3490_ST_ALS_VALID | TCS3490_ST_ALS_IRQ)) {
 		tcs3490_get_als_setup_next(chip);
@@ -813,7 +812,7 @@ static ssize_t tcs3490_chip_pow_store(struct device *dev,
 				IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
 				dev_name(&chip->client->dev), chip);
 			if (rc) {
-				dev_info(&chip->client->dev,
+				dev_err(&chip->client->dev,
 					"Failed to request irq %d\n",
 					chip->client->irq);
 				(void)pinctrl_select_state(chip->pinctrl,
@@ -1267,21 +1266,20 @@ static int tcs3490_pltf_power_on(struct tcs3490_chip *chip)
 
 	mutex_lock(&chip->lock);
 	rc = regulator_enable(chip->vdd);
-	if (chip->vio_enable) {
-		rc = regulator_enable(chip->vio);
-	}
-
 	if (rc) {
 		dev_err(&chip->client->dev,
 		"Regulator vdd enable failed rc=%d\n", rc);
 		chip->unpowered = true;
 		mutex_unlock(&chip->lock);
-	} else {
+	}
+	if (!rc) {
+		if (chip->gpio_vdd)
+			rc = regulator_enable(chip->gpio_vdd);
+	}
+	if (!rc) {
 		dev_dbg(&chip->client->dev,
 		"%s: rgbcir, power init, regulator enable OK\n", __func__);
-
 		/* Enable Oscillator */
-		usleep_range(1000, 1000);
 		tcs3490_i2c_write(chip, TCS3490_CONTROL, 0x01);
 		mutex_unlock(&chip->lock);
 		usleep_range(10000, 11000);
@@ -1305,8 +1303,6 @@ static int tcs3490_power_on(struct tcs3490_chip *chip)
 
 	if (!rc)
 		chip->unpowered = false;
-	else
-		tcs3490_pltf_power_off(chip);
 
     return rc;
 }
@@ -1314,19 +1310,15 @@ static int tcs3490_power_on(struct tcs3490_chip *chip)
 static int tcs3490_pltf_power_off(struct tcs3490_chip *chip)
 {
 	int rc = 0;
-	int rc2 = 0;
 
 	mutex_lock(&chip->lock);
 	/* Disable Oscillator */
 	tcs3490_i2c_write(chip, TCS3490_CONTROL, 0x00);
 	usleep_range(3000, 4000);
-	rc = regulator_disable(chip->vdd);
-	if (chip->vio_enable) {
-		rc2 = regulator_disable(chip->vio);
-		if (!rc && rc2) {
-			rc = rc2;
-		}
+	if (chip->gpio_vdd) {
+		(void)regulator_disable(chip->gpio_vdd);
 	}
+	rc = regulator_disable(chip->vdd);
 
 	if (!rc)
 		chip->unpowered = true;
@@ -1370,7 +1362,6 @@ static int tcs3490_probe(struct i2c_client *client,
 			goto init_failed;
 		}
 	}
-
 	dev_info(&chip->client->dev, "tcs3490: Initializing mutex\n");
 	mutex_init(&chip->lock);
 	chip->vdd = regulator_get(&chip->client->dev, "rgbcir_vdd");
@@ -1378,32 +1369,27 @@ static int tcs3490_probe(struct i2c_client *client,
 		rc = PTR_ERR(chip->vdd);
 		dev_err(&chip->client->dev,
 			"Regulator get failed,avdd, rc = %d\n", rc);
-			mutex_unlock(&chip->lock);
 		goto init_failed;
+	}
+	chip->gpio_vdd = NULL;
+	if (chip->client->dev.of_node) {
+		int count = 0;
+		count = of_property_count_strings(chip->client->dev.of_node,
+			"ams,rgbcir-gpio-vreg-name");
+		if (count) {
+			chip->gpio_vdd = regulator_get(&chip->client->dev,
+				"rgbcir_gpio_vdd");
+			if (IS_ERR(chip->gpio_vdd)) {
+				rc = PTR_ERR(chip->vdd);
+				dev_err(&chip->client->dev,
+				"Regulator get failed,avdd, rc = %d\n", rc);
+				goto init_failed;
+			}
+		}
 	}
 	dev_info(&chip->client->dev,
 		"%s: rgbcir, power init, regulator get OK\n", __func__);
-	rc = of_property_match_string(chip->client->dev.of_node,
-		"ams,rgbcir-supply_name", "rgbcir_vio");
-	if (rc < 0) {
-		chip->vio_enable = 0;
-	} else {
-		chip->vio_enable = 1;
-	}
-	if (chip->vio_enable) {
-		chip->vio = regulator_get(&chip->client->dev, "rgbcir_vio");
-		if (IS_ERR(chip->vio)) {
-			rc = PTR_ERR(chip->vio);
-			dev_err(&chip->client->dev,
-				"Regulator get failed,vio, rc = %d\n", rc);
-				mutex_unlock(&chip->lock);
-			goto init_failed;
-		}
-		dev_info(&chip->client->dev,
-			"%s: rgbcir, power init, regulator vio get OK\n", __func__);
-	}
 	chip->unpowered = true;
-
 	chip->a_idev = input_allocate_device();
 	if (!chip->a_idev) {
 		rc = -ENOMEM;
@@ -1457,8 +1443,6 @@ static int tcs3490_probe(struct i2c_client *client,
 	return 0;
 
 init_failed:
-	if (chip->vdd)
-		regulator_put(chip->vdd);
 	dev_err(&client->dev, "Probe failed.\n");
 	return rc;
 
@@ -1466,10 +1450,6 @@ exit_unregister_dev_ps:
 	input_unregister_device(chip->a_idev);
 exit_free_dev_ps:
 	input_free_device(chip->a_idev);
-	if (chip->vio_enable && chip->vio)
-		regulator_put(chip->vio);
-	if (chip->vdd)
-		regulator_put(chip->vdd);
 	kfree(chip);
 	return rc;
 }
@@ -1480,10 +1460,6 @@ static int tcs3490_remove(struct i2c_client *client)
 	sysfs_remove_link(&chip->a_idev->dev.kobj,
 		RGBCIR_SENSOR_SYSFS_LINK_NAME);
     free_irq(client->irq, chip);
-    if (chip->vio_enable && chip->vio)
-	regulator_put(chip->vio);
-    if (chip->vdd)
-	regulator_put(chip->vdd);
     if (chip->a_idev) {
         input_unregister_device(chip->a_idev);
     }
