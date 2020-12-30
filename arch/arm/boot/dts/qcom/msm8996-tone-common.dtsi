@@ -342,7 +342,7 @@
 				&msm_gpio_46 &msm_gpio_49 &msm_gpio_50 &msm_gpio_51
 				&msm_gpio_52 &msm_gpio_55 &msm_gpio_56 &msm_gpio_57
 				&msm_gpio_58 &msm_gpio_59 &msm_gpio_60 &msm_gpio_61
-				&msm_gpio_62 &msm_gpio_63 &msm_gpio_69_suspend &msm_gpio_73
+				&msm_gpio_62 &msm_gpio_63 &msm_gpio_69 &msm_gpio_73
 				&msm_gpio_74 &msm_gpio_75 &msm_gpio_76 &msm_gpio_77
 				&msm_gpio_78 &msm_gpio_79 &msm_gpio_81 &msm_gpio_82_suspend
 				&msm_gpio_83 &msm_gpio_84 &msm_gpio_85 &msm_gpio_86
@@ -1127,9 +1127,9 @@
 	qcom,init-ldo-mode = <1>;
 	qcom,init-pin-ctrl-enable = <0>;
 	qcom,init-pin-ctrl-mode = <0>;
-	regulator-min-microvolt = <2500000>;
+	regulator-min-microvolt = <2200000>;
 	regulator-max-microvolt = <2500000>;
-	qcom,init-voltage = <2500000>;
+	qcom,init-voltage = <2200000>;
 	status = "okay";
 };
 
@@ -1211,9 +1211,9 @@
 	qcom,init-ldo-mode = <1>;
 	qcom,init-pin-ctrl-enable = <0>;
 	qcom,init-pin-ctrl-mode = <0>;
-	regulator-min-microvolt = <1200000>;
+	regulator-min-microvolt = <1000000>;
 	regulator-max-microvolt = <1200000>;
-	qcom,init-voltage = <1200000>;
+	qcom,init-voltage = <1000000>;
 	status = "okay";
 };
 
@@ -1658,7 +1658,7 @@
 		};
 	};
 
-	/* GPIO_26 : NC */
+	/* GPIO_26 : NC (CAM2_STANDBY) */
 	msm_gpio_26: msm_gpio_26 {
 		mux {
 			pins = "gpio26";
@@ -2210,7 +2210,7 @@
 	/* GPIO_68 : BT_PCM_DOUT */
 	/* Follow QTI */
 
-	/* GPIO_69 : CAM_SOF_INT */
+	/* GPIO_69 : NC (backup for AUDIO_REF_CLK) */
 	msm_gpio_69: msm_gpio_69 {
 		mux {
 			pins = "gpio69";
@@ -2220,20 +2220,8 @@
 		config {
 			pins = "gpio69";
 			drive-strength = <2>;
-			bias-pull-up;
-		};
-	};
-	msm_gpio_69_suspend: msm_gpio_69_suspend {
-		mux {
-			pins = "gpio69";
-			function = "gpio";
-		};
-
-		config {
-			pins = "gpio69";
-			drive-strength = <2>;
-			bias-pull-down;
-			input-enable;
+			bias-disable;
+			output-low;
 		};
 	};
 
