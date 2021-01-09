@@ -20,6 +20,8 @@
 &soc {
 	 /*I2C : BLSP8 */
 	i2c@75b6000 { /* BLSP2 QUP1 */
+		/delete-node/ nq@28;
+
 		nfc@28 {
 			compatible = "nxp,pn547";
 			reg = <0x28>;
