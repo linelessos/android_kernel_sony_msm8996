@@ -190,8 +190,6 @@
 		pinctrl-0 = <&msm_gpio_6 &msm_gpio_7>;
 		pinctrl-1 = <&msm_gpio_6 &msm_gpio_7>;
 		status = "okay";
-
-		/delete-node/ nq@28;
 	};
 
 	/* I2C : BLSP11 */
