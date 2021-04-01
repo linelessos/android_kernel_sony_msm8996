@@ -92,7 +92,7 @@
 
 			qcom,rgb_0 {
 				somc,pwm-channel = <2>;
-				linux,name = "led:rgb_red";
+				inux,name = "red";
 				/delete-property/ linux,default-trigger;
 				somc,color_variation_max_num = <1>;
 				somc,max_current = <0 320 320>;
@@ -107,7 +107,7 @@
 			};
 			qcom,rgb_1 {
 				somc,pwm-channel = <1>;
-				linux,name = "led:rgb_green";
+				linux,name = "green";
 				/delete-property/ linux,default-trigger;
 				somc,color_variation_max_num = <1>;
 				somc,max_current = <0 511 511>;
@@ -122,7 +122,7 @@
 			};
 			qcom,rgb_2 {
 				somc,pwm-channel = <0>;
-				linux,name = "led:rgb_blue";
+				linux,name = "blue";
 				/delete-property/ linux,default-trigger;
 				somc,color_variation_max_num = <1>;
 				somc,max_current = <0 511 224>;
