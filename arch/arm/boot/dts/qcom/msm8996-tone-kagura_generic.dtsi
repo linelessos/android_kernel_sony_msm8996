@@ -20,21 +20,9 @@
 &soc {
 	 /*I2C : BLSP8 */
 	i2c@75b6000 { /* BLSP2 QUP1 */
-		/delete-node/ nq@28;
 
-		nfc@28 {
-			compatible = "nxp,pn547";
-			reg = <0x28>;
-			interrupt-parent = <&tlmm>;
-			interrupts = <9 0x1>;
-			nxp,irq_gpio = <&tlmm 9 0x00>;
-			nxp,dwld_en = <&tlmm 12 0x00>;
-			nxp,ven = <&pm8994_gpios 7 0x01>;
-			qcom,clk-src = "BBCLK2";
-			qcom,clk-gpio = <&pm8994_gpios 10 0x00>;
-			clocks = <&clock_gcc clk_bb_clk2_pin>;
-			clock-names = "nfc_clk";
-			pinctrl-names = "pn547-active", "pn547-inactive";
+		nq@28 {
+			qcom,nq-firm = <&pm8994_gpios 7 0x01>;
 			pinctrl-0 = <&msm_gpio_9 &msm_gpio_12>;
 			pinctrl-1 = <&msm_gpio_9 &msm_gpio_12>;
 		};
