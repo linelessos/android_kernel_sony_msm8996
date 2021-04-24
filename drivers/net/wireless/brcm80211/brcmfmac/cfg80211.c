@@ -390,31 +390,41 @@ static int brcmf_vif_change_validate(struct brcmf_cfg80211_info *cfg,
 				     struct brcmf_cfg80211_vif *vif,
 				     enum nl80211_iftype new_type)
 {
-	int iftype_num[NUM_NL80211_IFTYPES];
 	struct brcmf_cfg80211_vif *pos;
+	bool check_combos = false;
+	int ret = 0;
+	struct iface_combination_params params = {
+		.num_different_channels = 1,
+	};
 
-	memset(&iftype_num[0], 0, sizeof(iftype_num));
 	list_for_each_entry(pos, &cfg->vif_list, list)
-		if (pos == vif)
-			iftype_num[new_type]++;
-		else
-			iftype_num[pos->wdev.iftype]++;
+		if (pos == vif) {
+			params.iftype_num[new_type]++;
+		} else {
+			/* concurrent interfaces so need check combinations */
+			check_combos = true;
+			params.iftype_num[pos->wdev.iftype]++;
+		}
 
-	return cfg80211_check_combinations(cfg->wiphy, 1, 0, iftype_num);
+	if (check_combos)
+		ret = cfg80211_check_combinations(cfg->wiphy, &params);
+
+	return ret;
 }
 
 static int brcmf_vif_add_validate(struct brcmf_cfg80211_info *cfg,
 				  enum nl80211_iftype new_type)
 {
-	int iftype_num[NUM_NL80211_IFTYPES];
 	struct brcmf_cfg80211_vif *pos;
+	struct iface_combination_params params = {
+		.num_different_channels = 1,
+	};
 
-	memset(&iftype_num[0], 0, sizeof(iftype_num));
 	list_for_each_entry(pos, &cfg->vif_list, list)
-		iftype_num[pos->wdev.iftype]++;
+		params.iftype_num[pos->wdev.iftype]++;
 
-	iftype_num[new_type]++;
-	return cfg80211_check_combinations(cfg->wiphy, 1, 0, iftype_num);
+	params.iftype_num[new_type]++;
+	return cfg80211_check_combinations(cfg->wiphy, &params);
 }
 
 static void convert_key_from_CPU(struct brcmf_wsec_key *key,
@@ -3073,6 +3083,9 @@ static s32 brcmf_cfg80211_resume(struct wiphy *wiphy)
 
 	brcmf_dbg(TRACE, "Enter\n");
 
+	if (brcmf_feat_is_quirk_enabled(ifp, BRCMF_FEAT_QUIRK_FAKE_WOWL))
+		return 0;
+
 	if (cfg->wowl_enabled) {
 		brcmf_configure_arp_offload(ifp, true);
 		brcmf_fil_cmd_int_set(ifp, BRCMF_C_SET_PM,
@@ -4432,6 +4445,8 @@ brcmf_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		       struct cfg80211_mgmt_tx_params *params, u64 *cookie)
 {
 	struct brcmf_cfg80211_info *cfg = wiphy_to_cfg(wiphy);
+	struct net_device *ndev = cfg_to_ndev(cfg);
+	struct brcmf_if *ifp = netdev_priv(ndev);
 	struct ieee80211_channel *chan = params->chan;
 	const u8 *buf = params->buf;
 	size_t len = params->len;
@@ -4483,6 +4498,11 @@ brcmf_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
 		cfg80211_mgmt_tx_status(wdev, *cookie, buf, len, true,
 					GFP_KERNEL);
 	} else if (ieee80211_is_action(mgmt->frame_control)) {
+		if (brcmf_feat_is_quirk_enabled(ifp,
+					BRCMF_FEAT_QUIRK_SKIP_ACTION_FRAMES)) {
+			brcmf_err("firmware does not handle action frames\n");
+			goto exit;
+		}
 		if (len > BRCMF_FIL_ACTION_FRAME_SIZE + DOT11_MGMT_HDR_LEN) {
 			brcmf_err("invalid action frame length\n");
 			err = -EINVAL;
@@ -5052,7 +5072,8 @@ brcmf_notify_connect_status(struct brcmf_if *ifp,
 		brcmf_net_setcarrier(ifp, true);
 	} else if (brcmf_is_linkdown(e)) {
 		brcmf_dbg(CONN, "Linkdown\n");
-		if (!brcmf_is_ibssmode(ifp->vif)) {
+		if (!brcmf_is_ibssmode(ifp->vif) &&
+		    !brcmf_feat_is_quirk_enabled(ifp, BRCMF_FEAT_QUIRK_FAKE_WOWL)) {
 			brcmf_bss_connect_done(cfg, ndev, e, false);
 		}
 		brcmf_link_down(ifp->vif, brcmf_map_fw_linkdown_reason(e));
@@ -5958,7 +5979,8 @@ static int brcmf_setup_wiphy(struct wiphy *wiphy, struct brcmf_if *ifp)
 	wiphy->vendor_commands = brcmf_vendor_cmds;
 	wiphy->n_vendor_commands = BRCMF_VNDR_CMDS_LAST - 1;
 
-	if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_WOWL))
+	if (brcmf_feat_is_enabled(ifp, BRCMF_FEAT_WOWL) ||
+	    brcmf_feat_is_quirk_enabled(ifp, BRCMF_FEAT_QUIRK_FAKE_WOWL))
 		brcmf_wiphy_wowl_params(wiphy);
 
 	err = brcmf_fil_cmd_data_get(ifp, BRCMF_C_GET_BANDLIST, &bandlist,
