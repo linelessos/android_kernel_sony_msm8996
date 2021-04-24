@@ -306,22 +306,27 @@
 		};
 	};
 
-	bcmdhd_wlan {
-		compatible = "android,bcmdhd_wlan";
-		gpios = <&tlmm 84 0x00>, /* WL_REG_ON */
-			<&tlmm 79 0x00>; /* WL_HOST_WAKE */
-		pinctrl-names = "default", "sleep";
-		pinctrl-0 = <&msm_gpio_84 &msm_gpio_79>;
-		pinctrl-1 = <&msm_gpio_84 &msm_gpio_79>;
-		wlan-pci-number = <0>;
+	bcmwlan_en: bcmwlan-en-1-8v {
+		pinctrl-names = "default";
+		pinctrl-0 = <&msm_gpio_84>;
+		compatible = "regulator-fixed";
+		regulator-name = "bcmwlan-en-regulator";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
 
-		qcom,msm-bus,name = "msm-bcmdhd";
-		qcom,msm-bus,num-cases = <3>;
-		qcom,msm-bus,num-paths = <1>;
-		qcom,msm-bus,vectors-KBps =
-			<45 512 0 0>, /* None vote */
-			<45 512 500 800>, /* Low vote */
-			<45 512 500 5448000>; /* High Vote */
+		gpio = <&tlmm 84 0>;
+
+		/* WLAN card specific delay */
+		startup-delay-us = <70000>;
+		enable-active-high;
+	};
+
+	brcmf: brcmf@1 {
+		reg = <1>;
+		compatible = "brcm,bcm4329-fmac";
+		interrupt-parent = <&tlmm>;
+		interrupts = <79 8>; /* WL_HOST_WAKE */
+		interrupt-names = "oob-irq";
 	};
 
 	somc_pinctrl: somc_pinctrl {
