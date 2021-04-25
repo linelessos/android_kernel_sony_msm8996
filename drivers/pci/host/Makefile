@@ -7,6 +7,7 @@ obj-$(CONFIG_PCI_HYPERV) += pci-hyperv.o
 obj-$(CONFIG_PCI_MVEBU) += pci-mvebu.o
 obj-$(CONFIG_PCI_AARDVARK) += pci-aardvark.o
 obj-$(CONFIG_PCI_TEGRA) += pci-tegra.o
+obj-$(CONFIG_PCI_MSM)	+= pci-msm.o
 obj-$(CONFIG_PCI_RCAR_GEN2) += pci-rcar-gen2.o
 obj-$(CONFIG_PCIE_RCAR) += pcie-rcar.o
 obj-$(CONFIG_PCI_HOST_COMMON) += pci-host-common.o
@@ -33,11 +34,3 @@ obj-$(CONFIG_PCIE_ARMADA_8K) += pcie-armada8k.o
 obj-$(CONFIG_PCIE_ARTPEC6) += pcie-artpec6.o
 obj-$(CONFIG_PCIE_ROCKCHIP) += pcie-rockchip.o
 obj-$(CONFIG_VMD) += vmd.o
-
-ifeq ($(CONFIG_PCI_MSM),y)
-  ifeq ($(CONFIG_PCI_MSM_LEGACY),y)
-    obj-y += pci-msm-legacy.o
-  else
-    obj-y += pci-msm.o
-  endif
-endif
