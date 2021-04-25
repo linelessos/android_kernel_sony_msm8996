@@ -10,6 +10,7 @@ config SND_SOC_WCD_MBHC
 	tristate "SND_SOC_WCD_MBHC"
 config SND_SOC_WSA881X
 	tristate "SND_SOC_WSA881X"
+	select REGMAP_SWR
 config SND_SOC_WCD_DSP_MGR
 	tristate "SND_SOC_WCD_DSP_MGR"
 config SND_SOC_WCD_SPI
@@ -70,6 +71,8 @@ config QTI_PP
 	tristate "QTI_PP"
 config QTI_PP_AUDIOSPHERE
         tristate "QTI_PP_AUDIOSPHERE"
+config SND_SOC_CPE
+	tristate "CPE"
 config SND_HWDEP_ROUTING
 	tristate "SND_HWDEP_ROUTING"
 config DTS_EAGLE
@@ -104,12 +107,13 @@ config SND_SOC_SDM845
 	tristate "SND_SOC_SDM845"
 config SND_SOC_SDM670
 	tristate "SND_SOC_SDM670"
-config SND_SOC_SDM660
-	tristate "SND_SOC_SDM660"
+
+config SND_SOC_WCD_CPE_SOMC_EXT
+	bool "WCD CPE SoMC Extensions"
+	depends on SND_SOC_WCD_CPE
 config SND_SOC_MSM8956
 	tristate "SND_SOC_MSM8956"
 config SND_SOC_MSM8996
 	tristate "SND_SOC_MSM8996"
 config SND_SOC_MSM8998
 	tristate "SND_SOC_MSM8998"
-
