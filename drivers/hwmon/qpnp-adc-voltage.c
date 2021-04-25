@@ -241,8 +241,8 @@ static struct qpnp_vadc_scale_fn vadc_scale_fn[] = {
 	[SCALE_SMB1390_DIE_TEMP] = {qpnp_adc_scale_die_temp_1390},
 	[SCALE_BATT_THERM_TEMP_PU30] = {qpnp_adc_batt_therm_pu30},
 	[SCALE_BATT_THERM_TEMP_PU400] = {qpnp_adc_batt_therm_pu400},
-	[SCALE_BATT_THERM_TEMP_QRD_215] = {qpnp_adc_batt_therm_qrd_215}
-	[SCALE_THERM_100K_PULLUP_DECI] = {qpnp_adc_scale_therm_pu2_decidegc},
+	[SCALE_BATT_THERM_TEMP_QRD_215] = {qpnp_adc_batt_therm_qrd_215},
+	[SCALE_THERM_100K_PULLUP_DECI] = {qpnp_adc_scale_therm_pu2_decidegc}
 };
 
 static struct qpnp_vadc_rscale_fn adc_vadc_rscale_fn[] = {
