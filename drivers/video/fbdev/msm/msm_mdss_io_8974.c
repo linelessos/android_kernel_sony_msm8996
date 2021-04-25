@@ -763,19 +763,14 @@ static void mdss_dsi_20nm_phy_regulator_enable(struct mdss_dsi_ctrl_pdata
 	phy_io_base = ctrl_pdata->phy_regulator_io.base;
 
 	if (pd->regulator_len != 7) {
-		pr_err("%s: wrong regulator settings (len = %d) but going on\n", __func__, pd->regulator_len);
-	//	return;
+		pr_err("%s: wrong regulator settings\n", __func__);
+		return;
 	}
 
 	if (pd->reg_ldo_mode) {
 		MIPI_OUTP(ctrl_pdata->phy_io.base + MDSS_DSI_DSIPHY_LDO_CNTRL,
 			0x1d);
 	} else {
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		/* Regulator ctrl - TEST */
-		MIPI_OUTP(phy_io_base + MDSS_DSI_DSIPHY_REGULATOR_TEST,
-			pd->regulator[5]);
-#endif
 		MIPI_OUTP(phy_io_base + MDSS_DSI_DSIPHY_REGULATOR_CTRL_1,
 			pd->regulator[1]);
 		MIPI_OUTP(phy_io_base + MDSS_DSI_DSIPHY_REGULATOR_CTRL_2,
@@ -829,8 +824,8 @@ static void mdss_dsi_20nm_phy_config(struct mdss_dsi_ctrl_pdata *ctrl_pdata)
 	}
 
 	if (pd->lanecfg_len != 45) {
-		pr_err("%s: wrong lane cfg but going on\n", __func__);
-		//return;
+		pr_err("%s: wrong lane cfg\n", __func__);
+		return;
 	}
 
 	/* 4 lanes + clk lane configuration */
@@ -1142,8 +1137,6 @@ static void mdss_dsi_phy_regulator_ctrl(struct mdss_dsi_ctrl_pdata *ctrl,
 {
 	struct mdss_dsi_ctrl_pdata *other_ctrl;
 	struct dsi_shared_data *sdata;
-	struct mdss_panel_data *pdata;
-	struct mdss_panel_info *pinfo;
 
 	if (!ctrl) {
 		pr_err("%s: Invalid input data\n", __func__);
@@ -1152,8 +1145,6 @@ static void mdss_dsi_phy_regulator_ctrl(struct mdss_dsi_ctrl_pdata *ctrl,
 
 	sdata = ctrl->shared_data;
 	other_ctrl = mdss_dsi_get_other_ctrl(ctrl);
-	pdata = &ctrl->panel_data;
-	pinfo = &pdata->panel_info;
 
 	mutex_lock(&sdata->phy_reg_lock);
 	if (enable) {
@@ -1167,19 +1158,17 @@ static void mdss_dsi_phy_regulator_ctrl(struct mdss_dsi_ctrl_pdata *ctrl,
 				mdss_dsi_20nm_phy_regulator_enable(ctrl);
 				break;
 			default:
-				/*
-				 * For dual dsi case, do not reconfigure dsi phy
-				 * regulator if the other dsi controller is still
-				 * active.
-				 */
-					if (!mdss_dsi_is_hw_config_dual(sdata) ||
-						(mdss_dsi_is_ctrl_clk_master(ctrl) &&
-							pinfo->ulps_suspend_enabled) ||
+			/*
+			 * For dual dsi case, do not reconfigure dsi phy
+			 * regulator if the other dsi controller is still
+			 * active.
+			 */
+				if (!mdss_dsi_is_hw_config_dual(sdata) ||
 						(other_ctrl &&
-							(!other_ctrl->is_phyreg_enabled
-							|| other_ctrl->mmss_clamp)))
-						mdss_dsi_28nm_phy_regulator_enable(
-										ctrl);
+						(!other_ctrl->is_phyreg_enabled
+						|| other_ctrl->mmss_clamp)))
+					mdss_dsi_28nm_phy_regulator_enable(
+									ctrl);
 				break;
 			}
 		}
@@ -1810,11 +1799,6 @@ static int mdss_dsi_ulps_config(struct mdss_dsi_ctrl_pdata *ctrl,
 	}
 	pinfo = &pdata->panel_info;
 	mipi = &pinfo->mipi;
-
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	if (!mdss_dsi_ulps_feature_enabled(pdata))
-		return 0;
-#endif
 
 	if (!mdss_dsi_is_ulps_req_valid(ctrl, enable, reconfig)) {
 		pr_debug("%s: skiping ULPS config for ctrl%d, enable=%d\n",

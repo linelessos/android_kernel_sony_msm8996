@@ -28,7 +28,7 @@
 
 #define SPLIT_MIXER_OFFSET 0x800
 
-#define STOP_TIMEOUT(hz) msecs_to_jiffies(2 * (1000 / hz) * (6 + 2))
+#define STOP_TIMEOUT(hz) msecs_to_jiffies((1000 / hz) * (6 + 2))
 #define POWER_COLLAPSE_TIME msecs_to_jiffies(100)
 #define CMD_MODE_IDLE_TIMEOUT msecs_to_jiffies(16 * 4)
 #define INPUT_EVENT_HANDLER_DELAY_USECS (16000 * 4)
@@ -537,7 +537,6 @@ static int mdss_mdp_cmd_tearcheck_setup(struct mdss_mdp_cmd_ctx *ctx,
 				__enable_rd_ptr_from_te(mixer->pingpong_base);
 
 		}
-		/* kholk ToDo: Do not init tearcheck if we are using DSC compression!! */
 		rc = mdss_mdp_cmd_tearcheck_cfg(mixer, ctx, locked);
 		if (rc)
 			goto err;
@@ -1999,11 +1998,6 @@ static int mdss_mdp_cmd_remove_vsync_handler(struct mdss_mdp_ctl *ctl,
 	spin_unlock_irqrestore(&ctx->clk_lock, flags);
 
 	if (disable_vsync_irq) {
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		if (ctx->vsync_irq_cnt == 0)
-			return 0;
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
-
 		/* disable rd_ptr interrupt and clocks */
 		mdss_mdp_setup_vsync(ctx, false);
 		complete(&ctx->stop_comp);
@@ -2150,11 +2144,6 @@ static int mdss_mdp_cmd_wait4pingpong(struct mdss_mdp_ctl *ctl, void *arg)
 
 	if (rc <= 0) {
 		u32 status, mask;
-
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		if (pdata->blackscreen_det)
-			pdata->blackscreen_det(pdata);
-#endif
 
 		mask = mdss_mdp_get_irq_mask(MDSS_MDP_IRQ_TYPE_PING_PONG_COMP,
 				ctx->current_pp_num);
@@ -2373,12 +2362,6 @@ static int mdss_mdp_cmd_panel_on(struct mdss_mdp_ctl *ctl,
 
 		}
 
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-		rc = mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_POST_PANEL_ON,
-				NULL, CTL_INTF_EVENT_FLAG_DEFAULT);
-		WARN(rc, "intf %d post panel on error (%d)\n",
-				ctl->intf_num, rc);
-#endif
 		rc = mdss_mdp_tearcheck_enable(ctl, true);
 		WARN(rc, "intf %d tearcheck enable error (%d)\n",
 				ctl->intf_num, rc);
@@ -2988,10 +2971,6 @@ static int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 	struct mdss_mdp_ctl *sctl = NULL, *mctl = ctl;
 	struct mdss_mdp_cmd_ctx *ctx, *sctx = NULL;
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	struct mdss_panel_data *pdata = NULL;
-	struct mipi_panel_info *mipi = NULL;
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
 	ctx = (struct mdss_mdp_cmd_ctx *) ctl->intf_ctx[MASTER_CTX];
 	if (!ctx) {
@@ -3064,31 +3043,6 @@ static int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 	/*
 	 * tx dcs command if had any
 	 */
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	if (IS_ERR_OR_NULL(ctl->panel_data)) {
-		pr_warn("%s: no panel data\n", __func__);
-	} else {
-		pdata = ctl->panel_data;
-		mipi  = &pdata->panel_info.mipi;
-	}
-
-	if (ctl->panel_data && mipi &&
-		mipi->dms_mode == DYNAMIC_MODE_RESOLUTION_SWITCH_IMMEDIATE &&
-		mipi->switch_mode_pending == true) {
-		/* enable clks and rd_ptr interrupt */
-		mdss_mdp_setup_vsync(ctx, true);
-
-		atomic_inc(&ctx->rdptr_cnt);
-		MDSS_XLOG(atomic_read(&ctx->rdptr_cnt));
-		mdss_mdp_cmd_wait4readptr(ctx);
-		MDSS_XLOG(atomic_read(&ctx->rdptr_cnt));
-
-		/* disable clks and rd_ptr interrupt */
-		mdss_mdp_setup_vsync(ctx, false);
-
-		mipi->switch_mode_pending = false;
-	}
-#endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	mdss_mdp_ctl_intf_event(ctl, MDSS_EVENT_DSI_CMDLIST_KOFF, NULL,
 		CTL_INTF_EVENT_FLAG_DEFAULT);
 
@@ -3145,7 +3099,6 @@ static int mdss_mdp_cmd_kickoff(struct mdss_mdp_ctl *ctl, void *arg)
 
 	MDSS_XLOG(ctl->num, ctx->current_pp_num,
 		sctx ? sctx->current_pp_num : -1, atomic_read(&ctx->koff_cnt));
-
 	return 0;
 }
 

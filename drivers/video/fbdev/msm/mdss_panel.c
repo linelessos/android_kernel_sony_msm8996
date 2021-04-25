@@ -985,5 +985,3 @@ int mdss_panel_dsc_prepare_pps_buf(struct dsc_desc *dsc, char *buf,
 
 	return DSC_PPS_LEN;	/* 128 */
 }
-
-

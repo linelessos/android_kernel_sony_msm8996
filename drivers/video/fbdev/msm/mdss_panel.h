@@ -280,9 +280,6 @@ enum mdss_intf_events {
 	MDSS_EVENT_DSI_RESET_WRITE_PTR,
 	MDSS_EVENT_PANEL_TIMING_SWITCH,
 	MDSS_EVENT_UPDATE_PARAMS,
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	MDSS_EVENT_DISP_ON,
-#endif	/* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 	MDSS_EVENT_MAX,
 };
 
@@ -436,10 +433,6 @@ struct mipi_panel_info {
 	u32  init_delay;
 	u32  post_init_delay;
 	u8 default_lanes;
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	int input_fpks;
-	bool switch_mode_pending;
-#endif
 };
 
 struct edp_panel_info {
@@ -789,17 +782,6 @@ struct mdss_panel_info {
 
 	/* HDR properties of display panel*/
 	struct mdss_panel_hdr_properties hdr_properties;
-
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	const char *panel_id_name;
-	int dsi_master;
-	int disp_on_in_hs;
-	int wait_time_before_on_cmd;
-
-	/* physical size in mm */
-	__u32 width;
-	__u32 height;
-#endif
 };
 
 struct mdss_panel_timing {
@@ -841,21 +823,6 @@ struct mdss_panel_data {
 	void (*set_backlight)(struct mdss_panel_data *pdata, u32 bl_level);
 	int (*apply_display_setting)(struct mdss_panel_data *pdata, u32 mode);
 	unsigned char *mmss_cc_base;
-
-#ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
-	struct platform_device *panel_pdev;
-
-	int (*intf_ready) (struct mdss_panel_data *pdata);
-	void (*crash_counter_reset) (void);
-	void (*blackscreen_off) (struct mdss_panel_data *pdata);
-	void (*blackscreen_det) (struct mdss_panel_data *pdata);
-	void (*fff_time_update) (struct mdss_panel_data *pdata);
-
-	int (*detect) (struct mdss_panel_data *pdata);
-	int (*update_panel) (struct mdss_panel_data *pdata);
-
-	bool resume_started;
-#endif
 
 	/**
 	 * event_handler() - callback handler for MDP core events
@@ -1191,17 +1158,6 @@ struct mdss_panel_cfg *mdss_panel_intf_type(int intf_val);
  */
 bool mdss_is_ready(void);
 int mdss_rect_cmp(struct mdss_rect *rect1, struct mdss_rect *rect2);
-
-struct msm_fb_data_type;
-#if defined(CONFIG_DEBUG_FS) && defined(CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL)
-void mipi_dsi_panel_create_debugfs(struct msm_fb_data_type *mfd);
-bool mdss_dsi_panel_flip_ud(void);
-#else
-static inline void mipi_dsi_panel_create_debugfs(struct msm_fb_data_type *mfd)
-{
-	/* empty */
-}
-#endif
 
 /**
  * mdss_panel_override_te_params() - overrides TE params to enable SW TE
