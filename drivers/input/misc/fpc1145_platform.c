@@ -35,7 +35,9 @@
  * as published by the Free Software Foundation.
  */
 
+#ifdef CONFIG_ARCH_SONY_NILE
 #include "cei_fp_detect.h"
+#endif
 
 #include <linux/delay.h>
 #include <linux/fs.h>
