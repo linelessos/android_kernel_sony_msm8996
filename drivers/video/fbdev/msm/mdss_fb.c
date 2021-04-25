@@ -5508,7 +5508,8 @@ void mdss_fb_report_panel_dead(struct msm_fb_data_type *mfd)
 	char *envp[2] = {"PANEL_ALIVE=0", NULL};
 	struct mdss_panel_data *pdata =
 		dev_get_platdata(&mfd->pdev->dev);
-#if defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL) && !defined(CONFIG_ARCH_MSM8916)
+#if defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL) && !defined(CONFIG_ARCH_MSM8916) \
+	&& !defined(CONFIG_ARCH_MSM8996)
 	int rc = 0;
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
 
@@ -5517,7 +5518,8 @@ void mdss_fb_report_panel_dead(struct msm_fb_data_type *mfd)
 		return;
 	}
 
-#if defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL) && !defined(CONFIG_ARCH_MSM8916)
+#if defined (CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL) && !defined(CONFIG_ARCH_MSM8916) \
+	&& !defined(CONFIG_ARCH_MSM8996)
 	rc = qpnp_labibb_ocp_check();
 	if (rc) {
 		pr_notice("%s: ocp check error\n", __func__);
