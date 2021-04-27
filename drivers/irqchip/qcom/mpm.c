@@ -231,6 +231,12 @@ static int msm_mpm_gpio_chip_set_type(struct irq_data *d, unsigned int type)
 	return 0;
 }
 
+static int msm_mpm_gpio_chip_set_wake(struct irq_data *d, unsigned int on)
+{
+	msm_mpm_enable_irq(d, on);
+	return 0;
+}
+
 static void msm_mpm_gic_chip_mask(struct irq_data *d)
 {
 	msm_mpm_enable_irq(d, false);
@@ -249,16 +255,52 @@ static int msm_mpm_gic_chip_set_type(struct irq_data *d, unsigned int type)
 	return irq_chip_set_type_parent(d, type);
 }
 
+static void msm_mpm_gic_chip_enable(struct irq_data *d)
+{
+	msm_mpm_enable_irq(d, true);
+	irq_chip_enable_parent(d);
+}
+
+static void msm_mpm_gic_chip_disable(struct irq_data *d)
+{
+	msm_mpm_enable_irq(d, false);
+	irq_chip_disable_parent(d);
+}
+
+static int msm_mpm_gic_chip_set_wake(struct irq_data *d, unsigned int on)
+{
+	msm_mpm_enable_irq(d, on);
+	return irq_chip_set_wake_parent(d, on);
+}
+
+static int msm_mpm_gic_get_irqchip_state(struct irq_data *d,
+		enum irqchip_irq_state which, bool *state)
+{
+	return d->parent_data->chip->irq_get_irqchip_state(d->parent_data,
+		which, state);
+}
+
+static int msm_mpm_gic_set_irqchip_state(struct irq_data *d,
+		enum irqchip_irq_state which, bool value)
+{
+	return d->parent_data->chip->irq_set_irqchip_state(d->parent_data,
+		which, value);
+}
+
 static struct irq_chip msm_mpm_gic_chip = {
 	.name		= "mpm-gic",
 	.irq_eoi	= irq_chip_eoi_parent,
 	.irq_mask	= msm_mpm_gic_chip_mask,
-	.irq_disable	= msm_mpm_gic_chip_mask,
+	.irq_disable	= msm_mpm_gic_chip_disable,
 	.irq_unmask	= msm_mpm_gic_chip_unmask,
+	.irq_enable	= msm_mpm_gic_chip_enable,
 	.irq_retrigger	= irq_chip_retrigger_hierarchy,
 	.irq_set_type	= msm_mpm_gic_chip_set_type,
-	.flags		= IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SKIP_SET_WAKE,
+	.irq_set_wake	= msm_mpm_gic_chip_set_wake,
+	.flags		= IRQCHIP_MASK_ON_SUSPEND,
 	.irq_set_affinity	= irq_chip_set_affinity_parent,
+	.irq_get_irqchip_state 	= msm_mpm_gic_get_irqchip_state,
+	.irq_set_irqchip_state	= msm_mpm_gic_set_irqchip_state,
 };
 
 static struct irq_chip msm_mpm_gpio_chip = {
@@ -266,8 +308,9 @@ static struct irq_chip msm_mpm_gpio_chip = {
 	.irq_mask	= msm_mpm_gpio_chip_mask,
 	.irq_disable	= msm_mpm_gpio_chip_mask,
 	.irq_unmask	= msm_mpm_gpio_chip_unmask,
+	.irq_enable	= msm_mpm_gpio_chip_unmask,
 	.irq_set_type	= msm_mpm_gpio_chip_set_type,
-	.flags		= IRQCHIP_MASK_ON_SUSPEND | IRQCHIP_SKIP_SET_WAKE,
+	.irq_set_wake	= msm_mpm_gpio_chip_set_wake,
 	.irq_retrigger          = irq_chip_retrigger_hierarchy,
 };
 
@@ -590,6 +633,10 @@ reg_base_err:
 
 static const struct of_device_id mpm_gic_chip_data_table[] = {
 	{
+		.compatible = "qcom,mpm-gic-msm8996",
+		.data = mpm_msm8996_gic_chip_data,
+	},
+	{
 		.compatible = "qcom,mpm-gic-msm8953",
 		.data = mpm_msm8953_gic_chip_data,
 	},
@@ -607,6 +654,10 @@ static const struct of_device_id mpm_gic_chip_data_table[] = {
 MODULE_DEVICE_TABLE(of, mpm_gic_chip_data_table);
 
 static const struct of_device_id mpm_gpio_chip_data_table[] = {
+	{
+		.compatible = "qcom,mpm-gpio-msm8996",
+		.data = mpm_msm8996_gpio_chip_data,
+	},
 	{
 		.compatible = "qcom,mpm-gpio-msm8953",
 		.data = mpm_msm8953_gpio_chip_data,

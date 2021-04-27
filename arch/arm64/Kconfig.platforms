@@ -241,6 +241,16 @@ config ARCH_SDM439
 	  This enables support for the sdm439 chipset. If you do not
 	  wish to build a kernel that runs on this chipset, say 'N' here.
 
+config ARCH_MSM8996
+    bool "Enable Support for Qualcomm Technologies, Inc. MSM8996"
+	depends on ARCH_QCOM
+	select COMMON_CLK
+	select COMMON_CLK_QCOM
+	select QCOM_GDSC
+	help
+	This enables support for the MSM8996 chipset. If you do not
+	wish to build a kernel that runs on this chipset, say 'N' here.
+
 config ARCH_ROCKCHIP
 	bool "Rockchip Platforms"
 	select ARCH_HAS_RESET_CONTROLLER
@@ -352,5 +362,41 @@ config ARCH_ZYNQMP
 	bool "Xilinx ZynqMP Family"
 	help
 	  This enables support for Xilinx ZynqMP Family
+
+config ARCH_SONY_TONE
+    bool "Sony Mobile Tone platform"
+    depends on ARCH_MSM8996
+    help
+      Support for the SONY Mobile Tone platform
+      which is based on QCOM MSM8996 chipset.
+      If you enable this config,
+      please use SONY Mobile device tree.
+
+config MACH_SONY_DORA
+    bool "Sony Mobile Dora"
+    depends on ARCH_SONY_TONE
+    help
+      Support for the SONY Mobile Dora device
+      which is based on SONY Tone platform.
+      If you enable this config,
+      please use SONY Mobile device tree.
+
+config MACH_SONY_KAGURA
+    bool "Sony Mobile Kagura"
+    depends on ARCH_SONY_TONE
+    help
+      Support for the SONY Mobile Kagura device
+      which is based on SONY Tone platform.
+      If you enable this config,
+      please use SONY Mobile device tree.
+
+config MACH_SONY_KEYAKI
+    bool "Sony Mobile Keyaki"
+    depends on ARCH_SONY_TONE
+    help
+      Support for the SONY Mobile Keyaki device
+      which is based on SONY Tone platform.
+      If you enable this config,
+      please use SONY Mobile device tree.
 
 endmenu

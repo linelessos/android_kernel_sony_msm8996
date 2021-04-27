@@ -193,6 +193,14 @@ config INPUT_QTI_HAPTICS
 	  is capable of driving both LRA and ERM vibrators.  This module provides
 	  haptic feedback for user actions such as a long press on the touch screen.
 
+config PON_SOMC_ORG
+	bool "SoMC specific power on interface"
+	depends on INPUT_QPNP_POWER_ON
+	help
+	  This option enables SoMC specific power on interface.
+	  The implementation in this kernel is feature-reduced to support only
+	  the dvdd shutdown function.
+
 config INPUT_SPARCSPKR
 	tristate "SPARC Speaker support"
 	depends on PCI && SPARC64
@@ -592,6 +600,15 @@ config INPUT_GPIO
 	help
 	  Say Y here if you want to support gpio based keys, wheels etc...
 
+config INPUT_BU520X1NVX
+	tristate "BU520X1NVX driver support"
+	default n
+	help
+	  Say Y here
+	  if you want to
+	  support BU520X1NVX
+	  as bipolar detection device.
+
 config HP_SDC_RTC
 	tristate "HP SDC Real Time Clock"
 	depends on (GSC || HP300) && SERIO
@@ -887,5 +904,11 @@ config INPUT_HISI_POWERKEY
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called hisi_powerkey.
+
+ config FPC1145_PLATFORM
+       tristate "Platform FPC1145 finger print driver"
+       default n
+       help
+         Select this module to enable FPC1145 tee finger print driver
 
 endif

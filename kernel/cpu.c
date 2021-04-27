@@ -27,6 +27,7 @@
 #include <linux/relay.h>
 #include <linux/slab.h>
 #include <linux/highmem.h>
+#include <linux/cpuset.h>
 
 #include <trace/events/power.h>
 #define CREATE_TRACE_POINTS
@@ -513,6 +514,12 @@ static void __cpuhp_kick_ap_work(struct cpuhp_cpu_state *st);
 
 static void __cpuhp_kick_ap_work(struct cpuhp_cpu_state *st);
 
+static int notify_starting(unsigned int cpu)
+{
+	cpu_notify(CPU_STARTING, cpu);
+	return 0;
+}
+
 static int bringup_wait_for_ap(unsigned int cpu)
 {
 	struct cpuhp_cpu_state *st = per_cpu_ptr(&cpuhp_state, cpu);
@@ -589,7 +596,8 @@ static int cpuhp_down_callbacks(unsigned int cpu, struct cpuhp_cpu_state *st,
 		BUG_ON(ret && st->state < CPUHP_AP_IDLE_DEAD);
 		if (ret) {
 			st->target = prev_state;
-			undo_cpu_down(cpu, st);
+			if (st->state < prev_state)
+				undo_cpu_down(cpu, st);
 			break;
 		}
 	}
@@ -680,13 +688,14 @@ static void cpuhp_thread_fun(unsigned int cpu)
 	struct cpuhp_cpu_state *st = this_cpu_ptr(&cpuhp_state);
 	int ret = 0;
 
+	if (!st->should_run)
+		return;
+
 	/*
 	 * Paired with the mb() in cpuhp_kick_ap_work and
 	 * cpuhp_invoke_ap_callback, so the work set is consistent visible.
 	 */
 	smp_mb();
-	if (!st->should_run)
-		return;
 
 	st->should_run = false;
 
@@ -902,6 +911,12 @@ static int notify_down_prepare(unsigned int cpu)
 	return err;
 }
 
+static int notify_dying(unsigned int cpu)
+{
+	cpu_notify(CPU_DYING, cpu);
+	return 0;
+}
+
 /* Take this CPU down. */
 static int take_cpu_down(void *_param)
 {
@@ -959,7 +974,7 @@ static int takedown_cpu(unsigned int cpu)
 	BUG_ON(cpu_online(cpu));
 
 	/*
-	 * The CPUHP_AP_SCHED_MIGRATE_DYING callback will have removed all
+	 * The migration_call() CPU_DYING callback will have removed all
 	 * runnable tasks from the cpu, there's only the idle task left now
 	 * that the migration thread is done doing the stop_machine thing.
 	 *
@@ -1012,6 +1027,7 @@ void cpuhp_report_idle_dead(void)
 #define notify_down_prepare	NULL
 #define takedown_cpu		NULL
 #define notify_dead		NULL
+#define notify_dying		NULL
 #endif
 
 #ifdef CONFIG_HOTPLUG_CPU
@@ -1067,7 +1083,7 @@ static int __ref _cpu_down(unsigned int cpu, int tasks_frozen,
 	 * to do the further cleanups.
 	 */
 	ret = cpuhp_down_callbacks(cpu, st, target);
-	if (ret && st->state > CPUHP_TEARDOWN_CPU && st->state < prev_state) {
+	if (ret && st->state == CPUHP_TEARDOWN_CPU && st->state < prev_state) {
 		st->target = prev_state;
 		st->rollback = true;
 		cpuhp_kick_ap_work(cpu);
@@ -1095,6 +1111,18 @@ static int do_cpu_down(unsigned int cpu, enum cpuhp_state target)
 {
 	int err;
 
+	/*
+	 * When cpusets are enabled, the rebuilding of the scheduling
+	 * domains is deferred to a workqueue context. Make sure
+	 * that the work is completed before proceeding to the next
+	 * hotplug. Otherwise scheduler observes an inconsistent
+	 * view of online and offline CPUs in the root domain. If
+	 * the online CPUs are still stuck in the offline (default)
+	 * domain, those CPUs would not be visible when scheduling
+	 * happens on from other CPUs in the root domain.
+	 */
+	cpuset_wait_for_hotplug();
+
 	cpu_maps_update_begin();
 	err = cpu_down_maps_locked(cpu, target);
 	cpu_maps_update_done();
@@ -1108,9 +1136,10 @@ EXPORT_SYMBOL(cpu_down);
 #endif /*CONFIG_HOTPLUG_CPU*/
 
 /**
- * notify_cpu_starting(cpu) - Invoke the callbacks on the starting CPU
+ * notify_cpu_starting(cpu) - call the CPU_STARTING notifiers
  * @cpu: cpu that just started
  *
+ * This function calls the cpu_chain notifiers with CPU_STARTING.
  * It must be called by the arch code on the new cpu, before the new cpu
  * enables interrupts and before the "boot" cpu returns from __cpu_up().
  */
@@ -1255,6 +1284,8 @@ static int do_cpu_up(unsigned int cpu, enum cpuhp_state target)
 		return -EINVAL;
 	}
 
+	cpuset_wait_for_hotplug();
+
 	switch_err = switch_to_rt_policy();
 	if (switch_err < 0)
 		return switch_err;
@@ -1314,6 +1345,13 @@ int freeze_secondary_cpus(int primary)
 	for_each_online_cpu(cpu) {
 		if (cpu == primary)
 			continue;
+
+		if (pm_wakeup_pending()) {
+			pr_info("Wakeup pending. Abort CPU freeze\n");
+			error = -EBUSY;
+			break;
+		}
+
 		trace_suspend_resume(TPS("CPU_OFF"), cpu, true);
 		error = _cpu_down(cpu, 1, CPUHP_OFFLINE);
 		trace_suspend_resume(TPS("CPU_OFF"), cpu, false);
@@ -1573,6 +1611,18 @@ static struct cpuhp_step cpuhp_ap_states[] = {
 		.name			= "smpcfd:dying",
 		.startup.single		= NULL,
 		.teardown.single	= smpcfd_dying_cpu,
+	},
+	/*
+	 * Low level startup.single/teardown notifiers. Run with interrupts
+	 * disabled. Will be removed once the notifiers are converted to
+	 * states.
+	 */
+	[CPUHP_AP_NOTIFY_STARTING] = {
+		.name			= "notify:starting",
+		.startup.single		= notify_starting,
+		.teardown.single		= notify_dying,
+		.skip_onerr		= true,
+		.cant_stop		= true,
 	},
 	/* Entry state on starting. Interrupts enabled from here on. Transient
 	 * state for synchronsization */
@@ -2270,6 +2320,9 @@ EXPORT_SYMBOL(__cpu_active_mask);
 struct cpumask __cpu_isolated_mask __read_mostly;
 EXPORT_SYMBOL(__cpu_isolated_mask);
 
+struct cpumask __cpu_unisolated_mask __read_mostly;
+EXPORT_SYMBOL(__cpu_unisolated_mask);
+
 void init_cpu_present(const struct cpumask *src)
 {
 	cpumask_copy(&__cpu_present_mask, src);
@@ -2290,6 +2343,11 @@ void init_cpu_isolated(const struct cpumask *src)
 	cpumask_copy(&__cpu_isolated_mask, src);
 }
 
+void init_cpu_unisolated(const struct cpumask *src)
+{
+	cpumask_copy(&__cpu_unisolated_mask, src);
+}
+
 /*
  * Activate the first processor.
  */
@@ -2302,6 +2360,7 @@ void __init boot_cpu_init(void)
 	set_cpu_active(cpu, true);
 	set_cpu_present(cpu, true);
 	set_cpu_possible(cpu, true);
+	set_cpu_isolated(cpu, false);
 }
 
 /*

@@ -579,6 +579,7 @@ static struct arm_smmu_option_prop arm_smmu_options[] = {
 	{ ARM_SMMU_OPT_DISABLE_ATOS, "qcom,disable-atos" },
 	{ ARM_SMMU_OPT_MMU500_ERRATA1, "qcom,mmu500-errata-1" },
 	{ ARM_SMMU_OPT_STATIC_CB, "qcom,enable-static-cb"},
+	{ ARM_SMMU_OPT_NO_SMR_CHECK, "qcom,no-smr-check" },
 	{ ARM_SMMU_OPT_HALT, "qcom,enable-smmu-halt"},
 	{ 0, NULL},
 };
@@ -2082,7 +2083,7 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 			dev_err(smmu->dev, "failed to request context IRQ %d (%u)\n",
 				cfg->irptndx, irq);
 			cfg->irptndx = INVALID_IRPTNDX;
-			goto out_clear_smmu;
+			// goto out_clear_smmu; /* FIXME */
 		}
 	} else {
 		cfg->irptndx = INVALID_IRPTNDX;
@@ -4452,7 +4453,8 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 		 * bits are set, so check each one separately. We can reject
 		 * masters later if they try to claim IDs outside these masks.
 		 */
-		if (!arm_smmu_is_static_cb(smmu)) {
+		if (!arm_smmu_is_static_cb(smmu) &&
+		    !(smmu->options & ARM_SMMU_OPT_NO_SMR_CHECK)) {
 			for (i = 0; i < size; i++) {
 				smr = readl_relaxed(
 					gr0_base + ARM_SMMU_GR0_SMR(i));
