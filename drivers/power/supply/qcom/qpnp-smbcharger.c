@@ -42,7 +42,7 @@
 #include <linux/msm_bcl.h>
 #include <linux/ktime.h>
 #include <linux/extcon.h>
-#include "pmic-voter.h"
+#include <linux/pmic-voter.h>
 
 #ifdef CONFIG_QPNP_SMBCHARGER_EXTENSION
 #define WAIT_TO_READ_DPDM_AT_PROBE_MS	50
@@ -6381,6 +6381,7 @@ static int smbchg_usb_get_property(struct power_supply *psy,
 	struct smbchg_chip *chip = power_supply_get_drvdata(psy);
 
 	switch (psp) {
+	case POWER_SUPPLY_PROP_SDP_CURRENT_MAX:
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 		val->intval = chip->usb_current_max;
 		break;
