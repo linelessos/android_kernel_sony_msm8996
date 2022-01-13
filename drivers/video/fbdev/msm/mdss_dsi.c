@@ -42,6 +42,7 @@
 #ifdef CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL
 #include "mdss_dsi_panel_driver.h"
 #endif /* CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL */
+#include "mdss_livedisplay.h"
 
 #define CMDLINE_DSI_CTL_NUM_STRING_LEN 2
 
@@ -3151,6 +3152,9 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 				pr_err("unable to change bitclk error-%d\n",
 					rc);
 		}
+		break;
+	case MDSS_EVENT_UPDATE_LIVEDISPLAY:
+		rc = mdss_livedisplay_update(ctrl_pdata, (int)(unsigned long) arg);
 		break;
 	default:
 		pr_debug("%s: unhandled event=%d\n", __func__, event);
