@@ -6816,7 +6816,13 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 		WL_ERR(("Driver only allows MGMT packet type\n"));
 		goto exit;
 	}
-
+	
+	if (len >  (action_frame->len + DOT11_MGMT_HDR_LEN)) {
+  			WL_ERR(("invalid action frame length:%zu\n"));
+                        return BCME_BADARG;
+                        goto exit;
+	}
+	
 	af_params = (wl_af_params_t *) kzalloc(WL_WIFI_AF_PARAMS_SIZE, GFP_KERNEL);
 
 	if (af_params == NULL)
