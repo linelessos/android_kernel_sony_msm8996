@@ -6817,11 +6817,13 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 		goto exit;
 	}
 
+#ifndef CONFIG_MACH_SONY_KAGURA
 	if (len > (action_frame->len + DOT11_MGMT_HDR_LEN)) {
 		WL_ERR(("invalid action frame length:%zu\n"));
 		return BCME_BADARG;
 		goto exit;
 	}
+#endif
 
 	af_params = (wl_af_params_t *) kzalloc(WL_WIFI_AF_PARAMS_SIZE, GFP_KERNEL);
 
