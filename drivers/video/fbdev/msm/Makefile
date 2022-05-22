@@ -71,3 +71,5 @@ ifeq ($(CONFIG_FB_MSM_MDSS_SPECIFIC_PANEL),y)
 obj-$(CONFIG_FB_MSM_MDSS) += incell.o
 endif
 obj-$(CONFIG_COMPAT) += mdss_compat_utils.o
+
+obj-$(CONFIG_FB_MSM_MDSS) += mdss_livedisplay.o
